@@ -26,32 +26,26 @@ read_sudoku_csv :: proc(csv_path : string) -> (result: [][]string, ok: bool) {
 }
 
 print_sudoku_board :: proc(board: [][]string) {
-
-    // Create a string builder to collect the table output
-    sb := strings.builder_make()
-    defer strings.builder_destroy(&sb)
-
-    // Initialize the table structure
-    tbl: table.Table
-    table.init(&tbl)
-    defer table.destroy(&tbl)
-
-    // Add table decorations and headers
-    table.caption(&tbl, "Board")
-    
-    // Add data rows
-	// TODO: not quite right!
-    for row in board {
-    	table.row(&tbl, row)
+	fmt.println()
+	fmt.println("+ - - - + - - - + - - - +")
+	for w in 0..<WIDTH {
+		for x in 0..<WIDTH {
+			for y in 0..<WIDTH {
+				fmt.print('|')
+				for z in 0..<WIDTH {
+					val := "."
+					if board[w*WIDTH+x][y*WIDTH+z] != "" {
+						val = board[w*WIDTH+x][y*WIDTH+z]
+					}
+					fmt.print("", val)
+				}
+				fmt.print(" ")
+			}
+			fmt.println('|')
+		}
+		fmt.println("+ - - - + - - - + - - - +")
 	}
-
-    // Write the plain structured table to our builder
-    writer := strings.to_writer(&sb)
-    table.write_plain_table(writer, &tbl)
-
-    // Convert to a string and print to console
-    table_string := strings.to_string(sb)
-    fmt.println(table_string)
+	fmt.println()
 }
 
 main :: proc() {
