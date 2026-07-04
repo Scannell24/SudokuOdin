@@ -3,12 +3,14 @@ package main
 import "core:encoding/csv"
 import "core:fmt"
 import "core:os"
+import "core:slice"
 import "core:strings"
 import "core:text/table"
 import "core:unicode/utf8"
 
-SQUARE_SIZE : int : 3
-BOARD_SIZE : int : SQUARE_SIZE * SQUARE_SIZE
+SQ_SIZE : int : 3
+BOARD_SIZE : int : SQ_SIZE * SQ_SIZE
+board: [][]rune
 
 Position :: struct {
     x: int,
@@ -46,15 +48,15 @@ read_sudoku_csv :: proc(csv_path : string) -> (result: [][]rune, ok: bool) {
 	return records, true
 }
 
-print_sudoku_board :: proc(board: [][]rune) {
+print_sudoku_board :: proc() {
 	fmt.println()
 	fmt.println("+ - - - + - - - + - - - +")
-	for w in 0..<SQUARE_SIZE {
-		for x in 0..<SQUARE_SIZE {
-			for y in 0..<SQUARE_SIZE {
+	for w in 0..<SQ_SIZE {
+		for x in 0..<SQ_SIZE {
+			for y in 0..<SQ_SIZE {
 				fmt.print('|')
-				for z in 0..<SQUARE_SIZE {
-					fmt.print("", board[w*SQUARE_SIZE+x][y*SQUARE_SIZE+z])
+				for z in 0..<SQ_SIZE {
+					fmt.print("", board[w*SQ_SIZE+x][y*SQ_SIZE+z])
 				}
 				fmt.print(" ")
 			}
@@ -65,12 +67,27 @@ print_sudoku_board :: proc(board: [][]rune) {
 	fmt.println()
 }
 
-get_neighbors_in_square :: proc(board: [][]rune, x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
+get_neighbors_in_box :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
 	neighbors : [dynamic]rune
+	box := Position{x/3,  y/3}
+    // defer delete(box) not needed, Local variables are allocated on the stack and are deleted upon exit
+	//fmt.println("box:", x/3, ",", y/3)
+
+	for i in 0..<SQ_SIZE {
+		for j in 0..<SQ_SIZE {
+			pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
+			//fmt.println(board[pos.x][pos.y])
+			skip_cell := pos.x == x && pos.y == y
+			if !skip_cell && board[pos.x][pos.y] != '.' {
+    			append(&neighbors, board[pos.x][pos.y])
+			}
+		}
+	}
+	//fmt.println("neighbors in square:", neighbors)
 	return neighbors, true
 }
 
-get_neighbors_in_row :: proc(board: [][]rune, x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
+get_neighbors_in_row :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
 	neighbors : [dynamic]rune
 
 	for i in 0..<BOARD_SIZE {
@@ -79,10 +96,11 @@ get_neighbors_in_row :: proc(board: [][]rune, x: int, y: int) -> (result: [dynam
 			//fmt.println(board[x][i])
 		}
 	}
+	//fmt.println("neighbors in row:", neighbors)
 	return neighbors, true
 }
 
-get_neighbors_in_col :: proc(board: [][]rune, x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
+get_neighbors_in_col :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
 	neighbors : [dynamic]rune
 
 	for i in 0..<BOARD_SIZE {
@@ -91,34 +109,86 @@ get_neighbors_in_col :: proc(board: [][]rune, x: int, y: int) -> (result: [dynam
 			//fmt.println(board[i][y])
 		}
 	}
+	//fmt.println("neighbors in column:", neighbors)
 	return neighbors, true
+}
+
+get_possible_values :: proc(pos: Position) -> (result: [dynamic]rune, ok: bool) {
+	possible_vals : [dynamic]rune
+	//fmt.println("position:", pos)
+
+	if board[pos.x][pos.y] != '.' {
+		fmt.println("WARNING: already assigned a value!")
+		return possible_vals, true
+	}
+
+	row_neighbors, _ := get_neighbors_in_row(pos.x, pos.y)
+	//fmt.println("neighbors in row:", row_neighbors)
+	if len(row_neighbors) == 1 {
+		return row_neighbors, true
+	}
+
+	col_neighbors, _ := get_neighbors_in_col(pos.x, pos.y)
+	//fmt.println("neighbors in column:", col_neighbors)
+	if len(col_neighbors) == 1 {
+		return col_neighbors, true
+	}
+
+	box_neighbors, _ := get_neighbors_in_box(pos.x, pos.y)
+	//fmt.println("neighbors in square:", box_neighbors)
+	if len(box_neighbors) == 1 {
+		return box_neighbors, true
+	}
+
+	for i in 0..<BOARD_SIZE {
+		curr_rune := rune(i+1 + '0')
+		_, in_row := slice.linear_search(row_neighbors[:], curr_rune)
+		_, in_col := slice.linear_search(col_neighbors[:], curr_rune)
+		_, in_box := slice.linear_search(box_neighbors[:], curr_rune)
+		if !in_row && !in_col && !in_box {
+    		append(&possible_vals, curr_rune)
+			//fmt.println(curr_rune)
+		}
+	}
+	//fmt.println("possible values:", possible_vals)
+	return possible_vals, true
+}
+
+clean_up_stragglers :: proc() -> (bool) {
+	possible_vals : [dynamic]rune
+	ok := true
+	stragglers_found := false
+	for i in 0..<BOARD_SIZE {
+		for j in 0..<BOARD_SIZE {
+			position := Position{i, j}
+			if board[i][j] == '.' {
+				possible_vals, _ = get_possible_values(position)
+				if len(possible_vals) == 1 {
+					board[i][j] = possible_vals[0]
+					stragglers_found = true
+				}
+			}
+		}
+	}
+	if stragglers_found {
+		// do another sweep
+		ok = clean_up_stragglers()
+	}
+	return ok
 }
 
 main :: proc() {
 	fmt.println("Sudoku start!")
 
-	records, ok := read_sudoku_csv("easy_01.csv")
+	new_board, ok := read_sudoku_csv("easy_01.csv")
+	board = new_board
     if !ok { return }
 
-    // Remember to free the records array and its strings
-    defer {
-        for record in records {
-            delete(record)
-        }
-        delete(records)
-    }
+	print_sudoku_board()
 
-	print_sudoku_board(records)
+	clean_up_stragglers()
 
-	position := Position{0, 0}
-	row_neighbors, _ := get_neighbors_in_row(records, position.x, position.y)
-	fmt.println("neighbors in row:", row_neighbors)
-
-	col_neighbors, _ := get_neighbors_in_col(records, position.x, position.y)
-	fmt.println("neighbors in column:", col_neighbors)
-
-	//sq_neighbors, _ := get_neighbors_in_square(records, position.x, position.y)
-	//fmt.println("neighbors in square:", sq_neighbors)
+	print_sudoku_board()
 
 	solved := true
 	for !solved {
