@@ -180,7 +180,7 @@ clean_up_stragglers :: proc() -> (bool) {
 main :: proc() {
 	fmt.println("Sudoku start!")
 
-	new_board, ok := read_sudoku_csv("easy_01.csv")
+	new_board, ok := read_sudoku_csv("sudoku_1.csv")
 	board = new_board
     if !ok { return }
 
