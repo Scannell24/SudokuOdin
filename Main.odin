@@ -113,9 +113,20 @@ get_neighbors_in_col :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool
 	return neighbors, true
 }
 
-get_possible_values :: proc(pos: Position) -> (result: [dynamic]rune, ok: bool) {
+get_possible_values :: proc(pos: Position, dbg_print:=false) -> (result: [dynamic]rune, ok: bool) {
 	possible_vals : [dynamic]rune
-	//fmt.println("position:", pos)
+
+	get_possible_val :: proc(runes: [dynamic]rune) -> (result: [dynamic]rune) {
+		for i in 0..<BOARD_SIZE {
+			curr_rune := rune(i+1 + '0')
+			_, found := slice.linear_search(runes[:], curr_rune)
+			if !found {
+				append(&result, curr_rune)
+				return result
+			}
+		}
+		return result
+	}
 
 	if board[pos.x][pos.y] != '.' {
 		fmt.println("WARNING: already assigned a value!")
@@ -124,20 +135,20 @@ get_possible_values :: proc(pos: Position) -> (result: [dynamic]rune, ok: bool) 
 
 	row_neighbors, _ := get_neighbors_in_row(pos.x, pos.y)
 	//fmt.println("neighbors in row:", row_neighbors)
-	if len(row_neighbors) == 1 {
-		return row_neighbors, true
+	if len(row_neighbors) == BOARD_SIZE-1 {
+		return get_possible_val(row_neighbors), true
 	}
 
 	col_neighbors, _ := get_neighbors_in_col(pos.x, pos.y)
 	//fmt.println("neighbors in column:", col_neighbors)
-	if len(col_neighbors) == 1 {
-		return col_neighbors, true
+	if len(col_neighbors) == BOARD_SIZE-1 {
+		return get_possible_val(col_neighbors), true
 	}
 
 	box_neighbors, _ := get_neighbors_in_box(pos.x, pos.y)
 	//fmt.println("neighbors in square:", box_neighbors)
-	if len(box_neighbors) == 1 {
-		return box_neighbors, true
+	if len(box_neighbors) == BOARD_SIZE-1 {
+		return get_possible_val(box_neighbors), true
 	}
 
 	for i in 0..<BOARD_SIZE {
@@ -150,7 +161,10 @@ get_possible_values :: proc(pos: Position) -> (result: [dynamic]rune, ok: bool) 
 			//fmt.println(curr_rune)
 		}
 	}
-	//fmt.println("possible values:", possible_vals)
+	if len(possible_vals) == 1 || dbg_print {
+		fmt.println("position:", pos)
+		fmt.println("possible values:", possible_vals)
+	}
 	return possible_vals, true
 }
 
@@ -164,6 +178,8 @@ clean_up_stragglers :: proc() -> (bool) {
 			if board[i][j] == '.' {
 				possible_vals, _ = get_possible_values(position)
 				if len(possible_vals) == 1 {
+					fmt.println("position:", position, "=", possible_vals[0])
+					fmt.println("possible_vals:", possible_vals)
 					board[i][j] = possible_vals[0]
 					stragglers_found = true
 				}
@@ -186,7 +202,11 @@ main :: proc() {
 
 	print_sudoku_board()
 
-	clean_up_stragglers()
+	//get_possible_values(Position{0, 5}, true)
+	ok = clean_up_stragglers()
+	if !ok {
+		fmt.print("error")
+	}
 
 	print_sudoku_board()
 
@@ -194,7 +214,6 @@ main :: proc() {
 	for !solved {
 		fmt.println("Human solve")
 	}
-
 
 	fmt.println()
 	fmt.println("Sudoku end!")
