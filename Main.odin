@@ -11,6 +11,7 @@ import "core:unicode/utf8"
 SQ_SIZE : int : 3
 BOARD_SIZE : int : SQ_SIZE * SQ_SIZE
 board: [][]rune
+board_pot: [][][dynamic]rune // potential values for board cells
 
 Position :: struct {
     x: int,
@@ -32,8 +33,21 @@ read_sudoku_csv :: proc(csv_path : string) -> (result: [][]rune, ok: bool) {
     csv_records, _ := csv.read_all(&r)
     defer delete(csv_records)
 
-	// 2. Prepare the [][]rune
-	records = make([][]rune, len(csv_records))
+	// Instantiate the boards
+	length := len(csv_records)
+	records = make([][]rune, length)
+	board_pot = make([][][dynamic]rune, length)
+	for x in 0..<length {
+        // Allocate the secondary slice of length N for each element
+        board_pot[x] = make([] [dynamic]rune, length)
+
+		for y in 0..<length {
+            // Initialize the innermost dynamic array
+            board_pot[x][y] = make([dynamic]rune)
+		}
+	}
+	fmt.println("len(board_pot): ", len(board_pot))
+	
 
 	for row, i in csv_records {
 		rune_row := make([]rune, len(row))
@@ -46,6 +60,82 @@ read_sudoku_csv :: proc(csv_path : string) -> (result: [][]rune, ok: bool) {
 	}
 	
 	return records, true
+}
+
+update_board_pot :: proc() -> (ok: bool) {
+	potential_runes : [dynamic]rune
+	neighbors : [dynamic]rune
+	for x in 0..<BOARD_SIZE {
+		for y in 0..<BOARD_SIZE {
+			pos := Position{x, y}
+			if board[x][y] == '.' {
+				potential_runes, ok = get_possible_values(pos)
+				board_pot[x][y] = potential_runes
+				//for val in potential_runes {
+				//	append(&board_pot[x][y], val)
+				//}
+			}
+		}
+	}
+	return ok
+}
+
+print_sudoku_board_pot :: proc() {
+	fmt.println("print_sudoku_board_pot")
+	fmt.println()
+	fmt.print("+ - - - + - - - + - - - +")
+	fmt.print("+ - - - + - - - + - - - +")
+	fmt.print("+ - - - + - - - + - - - +")
+	fmt.println()
+	for a in 0..<SQ_SIZE {
+		for b in 0..<SQ_SIZE {
+			for w in 0..<SQ_SIZE {
+				for x in 0..<SQ_SIZE {
+					for y in 0..<SQ_SIZE {
+						fmt.print('|')
+						for z in 0..<SQ_SIZE {
+	// [0][0] [0][0] [0][0] || [0][1] [0][1] [0][1] || [0][2] [0][2] [0][2]
+	// [0][0] [0][0] [0][0] || [0][1] [0][1] [0][1] || [0][2] [0][2] [0][2]
+	// [0][0] [0][0] [0][0] || [0][1] [0][1] [0][1] || [0][2] [0][2] [0][2]
+	// ---------------------------------------------------------------------
+	// [1][0] [1][0] [1][0] || [1][1] [1][1] [1][1] || [1][2] [1][2] [1][2]
+
+							board_val := board[a*SQ_SIZE+b][x*SQ_SIZE+y]
+							if board_val != '.'
+							{
+								if z == 1 && w == 1 {
+									fmt.print("", board_val)
+								} else {
+									fmt.print("", '-')
+								}
+							} else {
+								cell_val := rune(w*SQ_SIZE+z+1 + '0')
+								_, found := slice.linear_search(board_pot[a*SQ_SIZE+b][x*SQ_SIZE+y][:], cell_val)
+								if found
+								{
+									fmt.print("", cell_val)
+								} else {
+									fmt.print("", '.')
+								}
+							}
+						}
+						fmt.print(" ")
+					}
+					fmt.print("|")
+				}
+				fmt.println()
+			}
+			fmt.print("+ - - - + - - - + - - - +")
+			fmt.print("+ - - - + - - - + - - - +")
+			fmt.print("+ - - - + - - - + - - - +")
+			fmt.println()
+		}
+		fmt.print("+ - - - + - - - + - - - +")
+		fmt.print("+ - - - + - - - + - - - +")
+		fmt.print("+ - - - + - - - + - - - +")
+		fmt.println()
+	}
+	fmt.println()
 }
 
 print_sudoku_board :: proc() {
@@ -65,6 +155,27 @@ print_sudoku_board :: proc() {
 		fmt.println("+ - - - + - - - + - - - +")
 	}
 	fmt.println()
+}
+
+// TODO
+check_for_loners_in_box :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
+	neighbors : [dynamic]rune
+	box := Position{x/3,  y/3}
+    // defer delete(box) not needed, Local variables are allocated on the stack and are deleted upon exit
+	//fmt.println("box:", x/3, ",", y/3)
+
+	for i in 0..<SQ_SIZE {
+		for j in 0..<SQ_SIZE {
+			pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
+			//fmt.println(board[pos.x][pos.y])
+			skip_cell := pos.x == x && pos.y == y
+			if !skip_cell && board[pos.x][pos.y] != '.' {
+    			append(&neighbors, board[pos.x][pos.y])
+			}
+		}
+	}
+	//fmt.println("neighbors in square:", neighbors)
+	return neighbors, true
 }
 
 get_neighbors_in_box :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
@@ -116,6 +227,11 @@ get_neighbors_in_col :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool
 get_possible_values :: proc(pos: Position, dbg_print:=false) -> (result: [dynamic]rune, ok: bool) {
 	possible_vals : [dynamic]rune
 
+	if board[pos.x][pos.y] != '.' {
+		fmt.println("WARNING: already assigned a value!")
+		return possible_vals, true
+	}
+
 	get_possible_val :: proc(runes: [dynamic]rune) -> (result: [dynamic]rune) {
 		for i in 0..<BOARD_SIZE {
 			curr_rune := rune(i+1 + '0')
@@ -126,11 +242,6 @@ get_possible_values :: proc(pos: Position, dbg_print:=false) -> (result: [dynami
 			}
 		}
 		return result
-	}
-
-	if board[pos.x][pos.y] != '.' {
-		fmt.println("WARNING: already assigned a value!")
-		return possible_vals, true
 	}
 
 	row_neighbors, _ := get_neighbors_in_row(pos.x, pos.y)
@@ -214,6 +325,9 @@ main :: proc() {
 	for !solved {
 		fmt.println("Human solve")
 	}
+
+	update_board_pot()
+	print_sudoku_board_pot()
 
 	fmt.println()
 	fmt.println("Sudoku end!")
