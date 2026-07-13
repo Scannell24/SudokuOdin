@@ -82,11 +82,18 @@ update_board_pot :: proc() -> (ok: bool) {
 
 print_sudoku_board_pot :: proc() {
 	fmt.println("print_sudoku_board_pot")
+
+
+	print_line_separator :: proc() {
+		fmt.print("+ - - - + - - - + - - - +")
+		fmt.print("+ - - - + - - - + - - - +")
+		fmt.print("+ - - - + - - - + - - - +")
+		fmt.println()
+	}
+
 	fmt.println()
-	fmt.print("+ - - - + - - - + - - - +")
-	fmt.print("+ - - - + - - - + - - - +")
-	fmt.print("+ - - - + - - - + - - - +")
-	fmt.println()
+	print_line_separator()
+	print_line_separator()
 	for a in 0..<SQ_SIZE {
 		for b in 0..<SQ_SIZE {
 			for w in 0..<SQ_SIZE {
@@ -94,19 +101,13 @@ print_sudoku_board_pot :: proc() {
 					for y in 0..<SQ_SIZE {
 						fmt.print('|')
 						for z in 0..<SQ_SIZE {
-	// [0][0] [0][0] [0][0] || [0][1] [0][1] [0][1] || [0][2] [0][2] [0][2]
-	// [0][0] [0][0] [0][0] || [0][1] [0][1] [0][1] || [0][2] [0][2] [0][2]
-	// [0][0] [0][0] [0][0] || [0][1] [0][1] [0][1] || [0][2] [0][2] [0][2]
-	// ---------------------------------------------------------------------
-	// [1][0] [1][0] [1][0] || [1][1] [1][1] [1][1] || [1][2] [1][2] [1][2]
-
 							board_val := board[a*SQ_SIZE+b][x*SQ_SIZE+y]
 							if board_val != '.'
 							{
 								if z == 1 && w == 1 {
 									fmt.print("", board_val)
 								} else {
-									fmt.print("", '-')
+									fmt.print("", ' ')
 								}
 							} else {
 								cell_val := rune(w*SQ_SIZE+z+1 + '0')
@@ -125,15 +126,9 @@ print_sudoku_board_pot :: proc() {
 				}
 				fmt.println()
 			}
-			fmt.print("+ - - - + - - - + - - - +")
-			fmt.print("+ - - - + - - - + - - - +")
-			fmt.print("+ - - - + - - - + - - - +")
-			fmt.println()
+			print_line_separator()
 		}
-		fmt.print("+ - - - + - - - + - - - +")
-		fmt.print("+ - - - + - - - + - - - +")
-		fmt.print("+ - - - + - - - + - - - +")
-		fmt.println()
+		print_line_separator()
 	}
 	fmt.println()
 }
@@ -157,25 +152,87 @@ print_sudoku_board :: proc() {
 	fmt.println()
 }
 
-// TODO
-check_for_loners_in_box :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
-	neighbors : [dynamic]rune
-	box := Position{x/3,  y/3}
-    // defer delete(box) not needed, Local variables are allocated on the stack and are deleted upon exit
-	//fmt.println("box:", x/3, ",", y/3)
+//TODO
+//delete_potential_vals_from_cell
+del_potential_vals :: proc() -> (ok: bool) {
+	ok = true
+	return ok
+}
+
+//TODO TODO makes it flexible up to N?
+//TODO
+find_hidden_pairs :: proc() -> (ok: bool) {
+	ok = true
+	return ok
+}
+
+//TODO
+check_for_loners_in_rows :: proc() -> (ok: bool) {
+	ok = true
+	return ok
+}
+
+//TODO
+check_for_loners_in_columns :: proc() -> (ok: bool) {
+	ok = true
+	return ok
+}
+
+check_for_loners_in_boxes :: proc() -> (ok: bool) {
+	ok = true
+	for i in 0..<SQ_SIZE {
+		for j in 0..<SQ_SIZE {
+			ok = check_for_loners_in_box(i, j)
+		}
+	}
+	return ok
+}
+
+check_for_loners_in_box :: proc(x: int, y: int) -> (ok: bool) {
+	pot_runes : [dynamic]rune
+	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
+	rune_counter : [BOARD_SIZE]int
+	box := Position{x,  y}
+	//fmt.println("box:", x, ",", y)
 
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
 			pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
-			//fmt.println(board[pos.x][pos.y])
-			skip_cell := pos.x == x && pos.y == y
-			if !skip_cell && board[pos.x][pos.y] != '.' {
-    			append(&neighbors, board[pos.x][pos.y])
+			pot_runes, ok = get_possible_values(pos)
+			for pot_rune in pot_runes {
+				//fmt.print(pot_rune)
+				index := int(pot_rune - '0')
+				//fmt.print(index, ' ')
+				rune_counter[index-1] += 1
+			}
+			rune_map[i][j] = pot_runes
+		}
+	}
+
+	//fmt.println("rune_counter:", rune_counter)
+	//fmt.println("rune_map:", rune_map)
+	found := false
+	for x in 0..<BOARD_SIZE {
+		if rune_counter[x] == 1 {
+			curr_rune := rune(x+1 + '0')
+			for i in 0..<SQ_SIZE {
+				for j in 0..<SQ_SIZE {
+					_, found = slice.linear_search(rune_map[i][j][:], curr_rune)
+					if found {
+						pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
+						fmt.println("value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
+						board[pos.x][pos.y] = curr_rune
+						break
+					}
+				}
+				if found {
+					found = false
+					break
+				}
 			}
 		}
 	}
-	//fmt.println("neighbors in square:", neighbors)
-	return neighbors, true
+	return true
 }
 
 get_neighbors_in_box :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
@@ -228,7 +285,7 @@ get_possible_values :: proc(pos: Position, dbg_print:=false) -> (result: [dynami
 	possible_vals : [dynamic]rune
 
 	if board[pos.x][pos.y] != '.' {
-		fmt.println("WARNING: already assigned a value!")
+		//fmt.println("WARNING: already assigned a value!")
 		return possible_vals, true
 	}
 
@@ -325,6 +382,9 @@ main :: proc() {
 	for !solved {
 		fmt.println("Human solve")
 	}
+
+	check_for_loners_in_boxes()
+	print_sudoku_board()
 
 	update_board_pot()
 	print_sudoku_board_pot()
