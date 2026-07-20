@@ -163,18 +163,120 @@ del_potential_vals :: proc() -> (ok: bool) {
 //TODO
 find_hidden_pairs :: proc() -> (ok: bool) {
 	ok = true
+	rune_slice : [BOARD_SIZE][dynamic]rune
+    append(&rune_slice[0], '1')
+    append(&rune_slice[0], '2')
+    append(&rune_slice[1], '1')
+    append(&rune_slice[1], '2')
+	fmt.println("rune_slice:", rune_slice)
+	fmt.println("rune_slice[0]:", rune_slice[0])
+	are_equal := slice.equal(rune_slice[0][:], rune_slice[1][:])
+	fmt.println("rune_slice equal?:", are_equal)
+	//for i in 0..<BOARD_SIZE {
+	//}
+
 	return ok
 }
 
-//TODO
+//TODO refine
 check_for_loners_in_rows :: proc() -> (ok: bool) {
 	ok = true
+	pot_runes : [dynamic]rune
+	rune_slice : [BOARD_SIZE][dynamic]rune
+	rune_counter : [BOARD_SIZE]int
+
+	for i in 0..<BOARD_SIZE {
+		//fmt.println("row:", i)
+		for j in 0..<BOARD_SIZE {
+			rune_counter[j] = 0
+		}
+		for j in 0..<BOARD_SIZE {
+			pos := Position{i, j}
+			pot_runes, ok = get_possible_values(pos)
+			for pot_rune in pot_runes {
+				//fmt.print(pot_rune)
+				index := int(pot_rune - '0')
+				//fmt.print(index, ' ')
+				rune_counter[index-1] += 1
+			}
+			rune_slice[j] = pot_runes
+			
+		}
+		//fmt.println("rune_counter:", rune_counter)
+		//fmt.println("rune_slice:", rune_slice)
+
+		found := false
+		for x in 0..<BOARD_SIZE {
+			if rune_counter[x] == 1 {
+				curr_rune := rune(x+1 + '0')
+				for j in 0..<BOARD_SIZE {
+					_, found = slice.linear_search(rune_slice[j][:], curr_rune)
+					if found {
+						pos := Position{i, j}
+						fmt.println("value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
+						board[pos.x][pos.y] = curr_rune
+						break
+					}
+				}
+				if found {
+					found = false
+					break
+				}
+			}
+		}
+	}
+
 	return ok
 }
 
-//TODO
+//TODO refine
 check_for_loners_in_columns :: proc() -> (ok: bool) {
 	ok = true
+	pot_runes : [dynamic]rune
+	rune_slice : [BOARD_SIZE][dynamic]rune
+	rune_counter : [BOARD_SIZE]int
+
+	for i in 0..<BOARD_SIZE {
+		//fmt.println("column:", i)
+		for j in 0..<BOARD_SIZE {
+			rune_counter[j] = 0
+		}
+		for j in 0..<BOARD_SIZE {
+			pos := Position{j, i}
+			pot_runes, ok = get_possible_values(pos)
+			for pot_rune in pot_runes {
+				//fmt.print(pot_rune)
+				index := int(pot_rune - '1')
+				//fmt.print(index, ' ')
+				rune_counter[index] += 1
+			}
+			rune_slice[j] = pot_runes
+			
+		}
+		//fmt.println("rune_counter:", rune_counter)
+		//fmt.println("rune_slice:", rune_slice)
+
+		found := false
+		for x in 0..<BOARD_SIZE {
+			if rune_counter[x] == 1 {
+				curr_rune := rune(x + '1')
+				for j in 0..<BOARD_SIZE {
+					_, found = slice.linear_search(rune_slice[j][:], curr_rune)
+					if found {
+						pos := Position{j, i}
+						fmt.println("value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
+						board[pos.x][pos.y] = curr_rune
+						break
+					}
+				}
+				if found {
+					found = false
+					break
+				}
+			}
+		}
+	}
+
 	return ok
 }
 
@@ -385,9 +487,16 @@ main :: proc() {
 
 	check_for_loners_in_boxes()
 	print_sudoku_board()
+	clean_up_stragglers()
+	check_for_loners_in_columns()
+	check_for_loners_in_rows()
 
 	update_board_pot()
 	print_sudoku_board_pot()
+	print_sudoku_board()
+
+	find_hidden_pairs()
+
 
 	fmt.println()
 	fmt.println("Sudoku end!")
