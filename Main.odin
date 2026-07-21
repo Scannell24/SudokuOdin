@@ -161,19 +161,36 @@ del_potential_vals :: proc() -> (ok: bool) {
 
 //TODO TODO makes it flexible up to N?
 //TODO
-find_hidden_pairs :: proc() -> (ok: bool) {
+find_hidden_pairs_in_rows :: proc() -> (ok: bool) {
 	ok = true
 	rune_slice : [BOARD_SIZE][dynamic]rune
+	/*
     append(&rune_slice[0], '1')
     append(&rune_slice[0], '2')
     append(&rune_slice[1], '1')
     append(&rune_slice[1], '2')
 	fmt.println("rune_slice:", rune_slice)
-	fmt.println("rune_slice[0]:", rune_slice[0])
 	are_equal := slice.equal(rune_slice[0][:], rune_slice[1][:])
 	fmt.println("rune_slice equal?:", are_equal)
-	//for i in 0..<BOARD_SIZE {
-	//}
+	*/
+	for x in 0..<BOARD_SIZE {
+		for i in 0..<BOARD_SIZE {
+			//fmt.println("i: ", i)
+			if len(board_pot[x][i]) > 0 {
+				for j in i+1..<BOARD_SIZE {
+					//fmt.print(j, " ")
+					if len(board_pot[x][j]) > 0 {
+						are_equal := slice.equal(board_pot[x][i][:], board_pot[x][j][:])
+						if are_equal {
+							fmt.println("cell potentials equivalent:")
+							fmt.println("[", x, "][", i, "]:", board_pot[x][i][:])
+							fmt.println("[", x, "][", j, "]:", board_pot[x][j][:])
+						}
+					}
+				}
+			}
+		}
+	}
 
 	return ok
 }
@@ -494,8 +511,7 @@ main :: proc() {
 	update_board_pot()
 	print_sudoku_board_pot()
 	print_sudoku_board()
-
-	find_hidden_pairs()
+	find_hidden_pairs_in_rows()
 
 
 	fmt.println()
