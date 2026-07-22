@@ -152,39 +152,86 @@ print_sudoku_board :: proc() {
 	fmt.println()
 }
 
-//TODO
 //delete_potential_vals_from_cell
-del_potential_vals :: proc() -> (ok: bool) {
+del_potential_vals :: proc(row: int, col: int, rune_slice: [dynamic]rune) -> (ok: bool) {
 	ok = true
+	//fmt.println("rune_slice", rune_slice)
+	new_rune_slice: [dynamic]rune
+	for pot_rune in board_pot[row][col] {
+		_, found := slice.linear_search(rune_slice[:], pot_rune)
+		if !found {
+			append(&new_rune_slice, pot_rune)
+		}
+	}
+	board_pot[row][col] = new_rune_slice
+	if len(new_rune_slice) == 1 {
+		board[row][col] = new_rune_slice[0]
+		pop(&board_pot[row][col])
+	}
 	return ok
 }
 
 //TODO TODO makes it flexible up to N?
-//TODO
+find_hidden_pairs_in_boxes :: proc() -> (ok: bool) {
+	ok = true
+	for i in 0..<SQ_SIZE {
+		for j in 0..<SQ_SIZE {
+			ok = check_for_loners_in_box(i, j)
+		}
+	}
+	return ok
+}
+
+find_hidden_pairs_in_box :: proc(x: int, y: int) -> (ok: bool) {
+	pot_runes : [dynamic]rune
+	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
+	rune_counter : [BOARD_SIZE]int
+	box := Position{x,  y}
+	pos := Position{}
+	//fmt.println("box:", x, ",", y)
+
+	for i in 0..<BOARD_SIZE {
+		pos = Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
+		fmt.println(pos)//, ',', j)
+		for j in i+1..<BOARD_SIZE {
+			//pos := Position{(SQ_SIZE * x) + i, (SQ_SIZE * y) + i/3}
+			//fmt.println(pos)//, ',', j)
+			//pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
+			//pot_runes, ok = get_possible_values(pos)
+			//fmt.print(index, ' ')
+		}
+	}
+	found := false
+	return true
+}
+
+//TODO TODO makes it flexible up to N?
 find_hidden_pairs_in_rows :: proc() -> (ok: bool) {
 	ok = true
 	rune_slice : [BOARD_SIZE][dynamic]rune
-	/*
-    append(&rune_slice[0], '1')
-    append(&rune_slice[0], '2')
-    append(&rune_slice[1], '1')
-    append(&rune_slice[1], '2')
-	fmt.println("rune_slice:", rune_slice)
-	are_equal := slice.equal(rune_slice[0][:], rune_slice[1][:])
-	fmt.println("rune_slice equal?:", are_equal)
-	*/
+	rune_pair : [2]rune
+	rune_indices : [2]int
 	for x in 0..<BOARD_SIZE {
 		for i in 0..<BOARD_SIZE {
 			//fmt.println("i: ", i)
 			if len(board_pot[x][i]) > 0 {
 				for j in i+1..<BOARD_SIZE {
 					//fmt.print(j, " ")
-					if len(board_pot[x][j]) > 0 {
+					if len(board_pot[x][j]) == 2 {
 						are_equal := slice.equal(board_pot[x][i][:], board_pot[x][j][:])
 						if are_equal {
-							fmt.println("cell potentials equivalent:")
-							fmt.println("[", x, "][", i, "]:", board_pot[x][i][:])
-							fmt.println("[", x, "][", j, "]:", board_pot[x][j][:])
+							tmp_pair := board_pot[x][i][:]
+							for z in 0..<2 {
+								rune_pair[z] = tmp_pair[z]
+							}
+							fmt.println("pair found! row [", x, "] columns [", i, ",", j, "]: values", tmp_pair)
+							rune_indices[0] = i
+							rune_indices[1] = j
+							for z in 0..<BOARD_SIZE {
+								if i != z && j != z {
+									del_potential_vals(x, z, board_pot[x][i])
+								}
+							}
 						}
 					}
 				}
@@ -410,7 +457,7 @@ get_possible_values :: proc(pos: Position, dbg_print:=false) -> (result: [dynami
 
 	get_possible_val :: proc(runes: [dynamic]rune) -> (result: [dynamic]rune) {
 		for i in 0..<BOARD_SIZE {
-			curr_rune := rune(i+1 + '0')
+			curr_rune := rune(i + '1')
 			_, found := slice.linear_search(runes[:], curr_rune)
 			if !found {
 				append(&result, curr_rune)
@@ -509,9 +556,10 @@ main :: proc() {
 	check_for_loners_in_rows()
 
 	update_board_pot()
+	find_hidden_pairs_in_rows()
 	print_sudoku_board_pot()
 	print_sudoku_board()
-	find_hidden_pairs_in_rows()
+	find_hidden_pairs_in_box(1, 1)
 
 
 	fmt.println()
