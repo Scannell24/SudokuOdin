@@ -186,21 +186,24 @@ find_hidden_pairs_in_box :: proc(x: int, y: int) -> (ok: bool) {
 	pot_runes : [dynamic]rune
 	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
-	box := Position{x,  y}
-	pos := Position{}
 	//fmt.println("box:", x, ",", y)
 
-	for i in 0..<BOARD_SIZE {
-		pos = Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
-		fmt.println(pos)//, ',', j)
+	//*
+	for i in 0..<BOARD_SIZE-1 {
+		pos1 := Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
+		//fmt.println("A:", pos1)
 		for j in i+1..<BOARD_SIZE {
-			//pos := Position{(SQ_SIZE * x) + i, (SQ_SIZE * y) + i/3}
-			//fmt.println(pos)//, ',', j)
-			//pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
-			//pot_runes, ok = get_possible_values(pos)
-			//fmt.print(index, ' ')
+			pos2 := Position{(SQ_SIZE * x) + j/3, (SQ_SIZE * y) + j%%3}
+			//fmt.println("B:", pos2)
+			pot2 := board_pot[pos1.x][pos1.y][:]
+			are_equal := slice.equal(pot2, board_pot[pos2.x][pos2.y][:])
+			if are_equal && len(pot2) > 0 {
+				fmt.println("hidden pair:", pot2)
+			}
 		}
+		//fmt.println()
 	}
+	// */
 	found := false
 	return true
 }
