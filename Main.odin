@@ -186,19 +186,40 @@ find_hidden_pairs_in_box :: proc(x: int, y: int) -> (ok: bool) {
 	pot_runes : [dynamic]rune
 	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
+	rune_pair : [2]rune
+	rune_indices : [2]int
 	//fmt.println("box:", x, ",", y)
+
+
+	for i in 0..<BOARD_SIZE-1 {
+		pos := Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
+		pot := board_pot[pos.x][pos.y][:]
+		fmt.println("pot:", pot)
+	}
 
 	//*
 	for i in 0..<BOARD_SIZE-1 {
 		pos1 := Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
-		//fmt.println("A:", pos1)
+		pot1 := board_pot[pos1.x][pos1.y][:]
+		//fmt.println("pos1:", pos1)
 		for j in i+1..<BOARD_SIZE {
 			pos2 := Position{(SQ_SIZE * x) + j/3, (SQ_SIZE * y) + j%%3}
-			//fmt.println("B:", pos2)
-			pot2 := board_pot[pos1.x][pos1.y][:]
-			are_equal := slice.equal(pot2, board_pot[pos2.x][pos2.y][:])
-			if are_equal && len(pot2) > 0 {
-				fmt.println("hidden pair:", pot2)
+			//fmt.println("pos2:", pos2)
+			are_equal := slice.equal(pot1, board_pot[pos2.x][pos2.y][:])
+			if are_equal && len(pot1) > 0 {
+				fmt.println("pair found! ", pos1, " , ", pos2, ": values", pot1)
+				//fmt.println("pair found!")
+				//fmt.println(pos1, ": ", board_pot[pos1.x][pos1.y][:])
+				//fmt.println(pos2, ": ", board_pot[pos2.x][pos2.y][:])
+				for z in 0..<BOARD_SIZE {
+					//fmt.println("z:", z)
+					if i != z && j != z {
+						pos := Position{(SQ_SIZE * x) + z/3, (SQ_SIZE * y) + z%%3}
+						//fmt.println(pos)
+						del_potential_vals(pos.x, pos.y, board_pot[pos1.x][pos1.y])
+					}
+				}
+
 			}
 		}
 		//fmt.println()
@@ -223,13 +244,7 @@ find_hidden_pairs_in_rows :: proc() -> (ok: bool) {
 					if len(board_pot[x][j]) == 2 {
 						are_equal := slice.equal(board_pot[x][i][:], board_pot[x][j][:])
 						if are_equal {
-							tmp_pair := board_pot[x][i][:]
-							for z in 0..<2 {
-								rune_pair[z] = tmp_pair[z]
-							}
-							fmt.println("pair found! row [", x, "] columns [", i, ",", j, "]: values", tmp_pair)
-							rune_indices[0] = i
-							rune_indices[1] = j
+							fmt.println("pair found! row [", x, "] columns [", i, ",", j, "]: values", board_pot[x][i])
 							for z in 0..<BOARD_SIZE {
 								if i != z && j != z {
 									del_potential_vals(x, z, board_pot[x][i])
@@ -563,6 +578,9 @@ main :: proc() {
 	print_sudoku_board_pot()
 	print_sudoku_board()
 	find_hidden_pairs_in_box(1, 1)
+	//clean_up_stragglers()
+	//print_sudoku_board()
+	//print_sudoku_board_pot()
 
 
 	fmt.println()
