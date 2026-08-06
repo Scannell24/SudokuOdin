@@ -62,7 +62,7 @@ read_sudoku_csv :: proc(csv_path : string) -> (result: [][]rune, ok: bool) {
 	return records, true
 }
 
-update_board_pot :: proc() -> (ok: bool) {
+update_board_pot :: proc(reset:=false) -> (ok: bool) {
 	potential_runes : [dynamic]rune
 	neighbors : [dynamic]rune
 	for x in 0..<BOARD_SIZE {
@@ -70,10 +70,18 @@ update_board_pot :: proc() -> (ok: bool) {
 			pos := Position{x, y}
 			if board[x][y] == '.' {
 				potential_runes, ok = get_possible_values(pos)
-				board_pot[x][y] = potential_runes
-				//for val in potential_runes {
-				//	append(&board_pot[x][y], val)
-				//}
+				if reset {
+					board_pot[x][y] = potential_runes
+				} else {
+					tmp_runes : [dynamic]rune
+					for pot_rune in potential_runes {
+						_, in_old_pot := slice.linear_search(board_pot[x][y][:], pot_rune)
+						if in_old_pot{
+							append(&tmp_runes, pot_rune)
+						}
+					}
+					board_pot[x][y] = tmp_runes
+				}
 			}
 		}
 	}
@@ -176,7 +184,7 @@ find_hidden_pairs_in_boxes :: proc() -> (ok: bool) {
 	ok = true
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
-			ok = check_for_loners_in_box(i, j)
+			ok = find_hidden_pairs_in_box(i, j)
 		}
 	}
 	return ok
@@ -194,7 +202,7 @@ find_hidden_pairs_in_box :: proc(x: int, y: int) -> (ok: bool) {
 	for i in 0..<BOARD_SIZE-1 {
 		pos := Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
 		pot := board_pot[pos.x][pos.y][:]
-		fmt.println("pot:", pot)
+		//fmt.println("pot:", pot)
 	}
 
 	//*
@@ -206,7 +214,7 @@ find_hidden_pairs_in_box :: proc(x: int, y: int) -> (ok: bool) {
 			pos2 := Position{(SQ_SIZE * x) + j/3, (SQ_SIZE * y) + j%%3}
 			//fmt.println("pos2:", pos2)
 			are_equal := slice.equal(pot1, board_pot[pos2.x][pos2.y][:])
-			if are_equal && len(pot1) > 0 {
+			if are_equal && len(pot1) == 2 {
 				fmt.println("pair found! ", pos1, " , ", pos2, ": values", pot1)
 				//fmt.println("pair found!")
 				//fmt.println(pos1, ": ", board_pot[pos1.x][pos1.y][:])
@@ -244,7 +252,7 @@ find_hidden_pairs_in_rows :: proc() -> (ok: bool) {
 					if len(board_pot[x][j]) == 2 {
 						are_equal := slice.equal(board_pot[x][i][:], board_pot[x][j][:])
 						if are_equal {
-							fmt.println("pair found! row [", x, "] columns [", i, ",", j, "]: values", board_pot[x][i])
+							fmt.println("pair found! row [", x, "] cols [", i, ",", j, "]: values", board_pot[x][i])
 							for z in 0..<BOARD_SIZE {
 								if i != z && j != z {
 									del_potential_vals(x, z, board_pot[x][i])
@@ -256,7 +264,36 @@ find_hidden_pairs_in_rows :: proc() -> (ok: bool) {
 			}
 		}
 	}
+	return ok
+}
 
+//TODO TODO makes it flexible up to N?
+find_hidden_pairs_in_cols :: proc() -> (ok: bool) {
+	ok = true
+	rune_slice : [BOARD_SIZE][dynamic]rune
+	rune_pair : [2]rune
+	rune_indices : [2]int
+	for x in 0..<BOARD_SIZE {
+		for i in 0..<BOARD_SIZE {
+			//fmt.println("i: ", i)
+			if len(board_pot[i][x]) > 0 {
+				for j in i+1..<BOARD_SIZE {
+					//fmt.print(j, " ")
+					if len(board_pot[j][x]) == 2 {
+						are_equal := slice.equal(board_pot[i][x][:], board_pot[j][x][:])
+						if are_equal {
+							fmt.println("pair found! col [", x, "] rows [", i, ",", j, "]: values", board_pot[i][x])
+							for z in 0..<BOARD_SIZE {
+								if i != z && j != z {
+									del_potential_vals(z, x, board_pot[i][x])
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	return ok
 }
 
@@ -521,18 +558,15 @@ get_possible_values :: proc(pos: Position, dbg_print:=false) -> (result: [dynami
 }
 
 clean_up_stragglers :: proc() -> (bool) {
-	possible_vals : [dynamic]rune
 	ok := true
+	update_board_pot()
 	stragglers_found := false
-	for i in 0..<BOARD_SIZE {
-		for j in 0..<BOARD_SIZE {
-			position := Position{i, j}
-			if board[i][j] == '.' {
-				possible_vals, _ = get_possible_values(position)
-				if len(possible_vals) == 1 {
-					fmt.println("position:", position, "=", possible_vals[0])
-					fmt.println("possible_vals:", possible_vals)
-					board[i][j] = possible_vals[0]
+	for x in 0..<BOARD_SIZE {
+		for y in 0..<BOARD_SIZE {
+			if board[x][y] == '.' {
+				if len(board_pot[x][y]) == 1 {
+					fmt.println("position: {", x, ",", y, "} =", board_pot[x][y][0])
+					board[x][y] = board_pot[x][y][0]
 					stragglers_found = true
 				}
 			}
@@ -573,14 +607,27 @@ main :: proc() {
 	check_for_loners_in_columns()
 	check_for_loners_in_rows()
 
-	update_board_pot()
+	update_board_pot(reset=true)
 	find_hidden_pairs_in_rows()
-	print_sudoku_board_pot()
-	print_sudoku_board()
-	find_hidden_pairs_in_box(1, 1)
-	//clean_up_stragglers()
+	find_hidden_pairs_in_boxes()
+	//*
+	clean_up_stragglers()
+	find_hidden_pairs_in_rows()
+	update_board_pot()
 	//print_sudoku_board()
 	//print_sudoku_board_pot()
+	find_hidden_pairs_in_rows()
+	find_hidden_pairs_in_cols()
+	print_sudoku_board()
+	print_sudoku_board_pot()
+	find_hidden_pairs_in_boxes()
+	find_hidden_pairs_in_cols()
+	print_sudoku_board()
+	print_sudoku_board_pot()
+	clean_up_stragglers()
+	print_sudoku_board()
+	print_sudoku_board_pot()
+	// */
 
 
 	fmt.println()
