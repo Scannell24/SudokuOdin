@@ -206,7 +206,7 @@ find_hidden_pairs_in_box :: proc(x: int, y: int) -> (ok: bool) {
 	}
 
 	//*
-	for i in 0..<BOARD_SIZE-1 {
+	for i in 0..<BOARD_SIZE {
 		pos1 := Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
 		pot1 := board_pot[pos1.x][pos1.y][:]
 		//fmt.println("pos1:", pos1)
@@ -297,7 +297,6 @@ find_hidden_pairs_in_cols :: proc() -> (ok: bool) {
 	return ok
 }
 
-
 is_subset :: proc(slice1: [dynamic]rune, slice2: [dynamic]rune) -> (is_subset: bool, ok: bool) {
 	ok = true
 	if len(slice1) > len(slice2) {
@@ -340,7 +339,7 @@ find_hidden_sets_in_cols :: proc() -> (ok: bool) {
 	*/
 	for set_size in 3..<5 {
 		//fmt.println("set_size: ", set_size)
-		for col_y in 8..<BOARD_SIZE {
+		for col_y in 0..<BOARD_SIZE {
 			for row_x1 in 0..<BOARD_SIZE {
 				if len(board_pot[row_x1][col_y]) == set_size {
 					temp_set : [dynamic][dynamic]rune
@@ -366,6 +365,67 @@ find_hidden_sets_in_cols :: proc() -> (ok: bool) {
 						_, found := slice.linear_search(temp_indices[:], row_x3)
 						if !found && len(board_pot[row_x1][col_y]) > 1 {
 							del_potential_vals(row_x3, col_y, temp_set[0])
+						}
+					}
+				}
+			}
+		}
+		// */
+	}
+	return ok
+}
+
+find_hidden_sets_in_rows :: proc() -> (ok: bool) {
+	ok = true
+	rune_slice : [BOARD_SIZE][dynamic]rune
+	rune_set : [2]rune
+
+	/*
+	for set_size in 2->5
+		for row/col/box in boardsize
+			for cell in row/col/box
+				if cell's num pot runes == set_size
+					curr_cell_coordiante := index
+					curr_cell_pot_vals := list
+					set := list
+					for neighbor_cell in row/col/box
+						if neighbor_cell != curr_cell_coordiante:
+							is_subset_or_equal = neighbor_cell.pot_vals subset of curr_cell_pot_vals
+							if is_subset_or_equal:
+								set.append(neighbor_cell)
+					if len(set) == set_size
+						for neighbor_cell in row/col/box
+							if neighbor_cell not in set
+								del_potential_vals curr_cell_pot_vals
+	*/
+	for set_size in 3..<5 {
+		//fmt.println("set_size: ", set_size)
+		for row_x in 0..<BOARD_SIZE {
+			for col_y1 in 0..<BOARD_SIZE {
+				if len(board_pot[row_x][col_y1]) == set_size {
+					temp_set : [dynamic][dynamic]rune
+					temp_indices : [dynamic]int
+					append(&temp_set, board_pot[row_x][col_y1])
+					append(&temp_indices, col_y1)
+					//fmt.println("temp_set:", temp_set)
+					for col_y2 in 0..<BOARD_SIZE {
+						if col_y1 != col_y2 && len(board_pot[row_x][col_y2]) > 0 {
+							is_subset, ok := is_subset(board_pot[row_x][col_y2], board_pot[row_x][col_y1])
+							if is_subset {
+								append(&temp_set, board_pot[row_x][col_y2])
+								append(&temp_indices, col_y2)
+								//fmt.println("subset:", board_pot[row_x][col_y2])
+							}
+						}
+					}
+					if len(temp_indices) == set_size {
+						fmt.println("temp_set:", temp_set)
+						fmt.println("temp_indices:", temp_indices)
+					}
+					for col_y3 in 0..<BOARD_SIZE {
+						_, found := slice.linear_search(temp_indices[:], col_y3)
+						if !found && len(board_pot[row_x][col_y3]) > 1 {
+							del_potential_vals(row_x, col_y3, temp_set[0])
 						}
 					}
 				}
@@ -658,13 +718,33 @@ clean_up_stragglers :: proc() -> (bool) {
 	return ok
 }
 
+
+is_complete :: proc() -> (is_complete: bool, ok: bool) {
+	pot_runes : [dynamic]rune
+	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
+	rune_counter : [BOARD_SIZE]int
+	//fmt.println("box:", x, ",", y)
+
+	/*
+	for i in 0..<BOARD_SIZE-1 {
+		for j in 0..<BOARD_SIZE-1 {
+			pos := Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
+			pot := board_pot[pos.x][pos.y][:]
+			//fmt.println("pot:", pot)
+		}
+	}
+	// */
+	return is_complete, ok
+}
+
 main :: proc() {
 	fmt.println("Sudoku start!")
-
-	new_board, ok := read_sudoku_csv("sudoku_1.csv")
-	board = new_board
+	ok : bool
+	board, ok = read_sudoku_csv("sudoku_3.csv")
+	update_board_pot(reset=true)
     if !ok { return }
 
+	print_sudoku_board_pot()
 	print_sudoku_board()
 
 	//get_possible_values(Position{0, 5}, true)
@@ -673,42 +753,24 @@ main :: proc() {
 		fmt.print("error")
 	}
 
-	print_sudoku_board()
 
 	solved := true
 	for !solved {
-		fmt.println("Human solve")
+		fmt.println("Not solved")
 	}
 
 	check_for_loners_in_boxes()
-	print_sudoku_board()
-	print_sudoku_board_pot()
-	clean_up_stragglers()
 	check_for_loners_in_columns()
 	check_for_loners_in_rows()
 
-	update_board_pot(reset=true)
-	//*
-	find_hidden_pairs_in_rows()
-	find_hidden_pairs_in_boxes()
-	clean_up_stragglers()
-	find_hidden_pairs_in_rows()
 	update_board_pot()
-	//print_sudoku_board()
-	//print_sudoku_board_pot()
-	find_hidden_pairs_in_rows()
-	find_hidden_pairs_in_cols()
-	print_sudoku_board()
-	print_sudoku_board_pot()
-	find_hidden_pairs_in_boxes()
-	find_hidden_pairs_in_cols()
-	print_sudoku_board()
-	print_sudoku_board_pot()
 	clean_up_stragglers()
-	print_sudoku_board()
-	print_sudoku_board_pot()
-	find_hidden_sets_in_cols()
-	clean_up_stragglers()
+	//find_hidden_pairs_in_rows()
+	//find_hidden_pairs_in_cols()
+	//find_hidden_pairs_in_boxes()
+	//find_hidden_sets_in_cols()
+	find_hidden_sets_in_rows()
+	//*
 	print_sudoku_board()
 	print_sudoku_board_pot()
 	// */
