@@ -314,65 +314,53 @@ is_subset :: proc(slice1: [dynamic]rune, slice2: [dynamic]rune) -> (is_subset: b
 	return true, ok
 }
 
-find_hidden_sets_in_cols :: proc() -> (ok: bool) {
+find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found: bool, ok: bool) {
 	ok = true
-	rune_slice : [BOARD_SIZE][dynamic]rune
-	rune_set : [2]rune
+	val_found = false
 
-	/*
-	for set_size in 2->5
-		for row/col/box in boardsize
-			for cell in row/col/box
-				if cell's num pot runes == set_size
-					curr_cell_coordiante := index
-					curr_cell_pot_vals := list
-					set := list
-					for neighbor_cell in row/col/box
-						if neighbor_cell != curr_cell_coordiante:
-							is_subset_or_equal = neighbor_cell.pot_vals subset of curr_cell_pot_vals
-							if is_subset_or_equal:
-								set.append(neighbor_cell)
-					if len(set) == set_size
-						for neighbor_cell in row/col/box
-							if neighbor_cell not in set
-								del_potential_vals curr_cell_pot_vals
-	*/
+	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
-		//fmt.println("set_size: ", set_size)
+		if dbg_log { fmt.println("set_size: ", set_size) }
+		// Go through each column
 		for col_y in 0..<BOARD_SIZE {
+			// For each column, go through each row
 			for row_x1 in 0..<BOARD_SIZE {
+				// If the current cell has the set size we're looking for
 				if len(board_pot[row_x1][col_y]) == set_size {
-					temp_set : [dynamic][dynamic]rune
-					temp_indices : [dynamic]int
-					append(&temp_set, board_pot[row_x1][col_y])
-					append(&temp_indices, row_x1)
-					//fmt.println("temp_set:", temp_set)
+					// Create dynamic slices to hold indices of interest
+					row_indices : [dynamic]int
+					append(&row_indices, row_x1)
+					if dbg_log { fmt.println("set:", board_pot[row_x1][col_y]) }
+					// Go through this row again
 					for row_x2 in 0..<BOARD_SIZE {
+						// If the row index is not the row of interest and there are potential values
 						if row_x1 != row_x2 && len(board_pot[row_x2][col_y]) > 0 {
 							is_subset, ok := is_subset(board_pot[row_x2][col_y], board_pot[row_x1][col_y])
+							// Add it to the row_indices slice
 							if is_subset {
-								append(&temp_set, board_pot[row_x2][col_y])
-								append(&temp_indices, row_x2)
-								//fmt.println("subset:", board_pot[row_x2][col_y])
+								append(&row_indices, row_x2)
+								if dbg_log { fmt.println("subset:", board_pot[row_x2][col_y]) }
 							}
 						}
 					}
-					if len(temp_indices) == set_size {
-						fmt.println("temp_set:", temp_set)
-						fmt.println("temp_indices:", temp_indices)
-					}
-					for row_x3 in 0..<BOARD_SIZE {
-						_, found := slice.linear_search(temp_indices[:], row_x3)
-						if !found && len(board_pot[row_x1][col_y]) > 1 {
-							del_potential_vals(row_x3, col_y, temp_set[0])
+					if len(row_indices) >= set_size {
+						if dbg_log { fmt.println("row_indices:", row_indices) }
+						val_found = true
+						// Go through the row again
+						for row_x3 in 0..<BOARD_SIZE {
+							_, found := slice.linear_search(row_indices[:], row_x3)
+							// If this is not one of the indices of interest and there are multiple potential values
+							if !found && len(board_pot[row_x1][col_y]) > 2 {
+								// delete the any values from the set from this cell
+								del_potential_vals(row_x3, col_y, board_pot[row_x1][col_y])
+							}
 						}
 					}
 				}
 			}
 		}
-		// */
 	}
-	return ok
+	return val_found, ok
 }
 
 find_hidden_sets_in_rows :: proc() -> (ok: bool) {
@@ -418,14 +406,14 @@ find_hidden_sets_in_rows :: proc() -> (ok: bool) {
 							}
 						}
 					}
-					if len(temp_indices) == set_size {
+					if len(temp_indices) >= set_size {
 						fmt.println("temp_set:", temp_set)
 						fmt.println("temp_indices:", temp_indices)
-					}
-					for col_y3 in 0..<BOARD_SIZE {
-						_, found := slice.linear_search(temp_indices[:], col_y3)
-						if !found && len(board_pot[row_x][col_y3]) > 1 {
-							del_potential_vals(row_x, col_y3, temp_set[0])
+						for col_y3 in 0..<BOARD_SIZE {
+							_, found := slice.linear_search(temp_indices[:], col_y3)
+							if !found && len(board_pot[row_x][col_y3]) > 1 {
+								del_potential_vals(row_x, col_y3, temp_set[0])
+							}
 						}
 					}
 				}
