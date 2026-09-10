@@ -143,13 +143,19 @@ print_sudoku_board_pot :: proc() {
 
 print_sudoku_board :: proc() {
 	fmt.println()
+	total_filled := 0
 	fmt.println("+ - - - + - - - + - - - +")
 	for w in 0..<SQ_SIZE {
 		for x in 0..<SQ_SIZE {
 			for y in 0..<SQ_SIZE {
 				fmt.print('|')
 				for z in 0..<SQ_SIZE {
-					fmt.print("", board[w*SQ_SIZE+x][y*SQ_SIZE+z])
+					temp_val := board[w*SQ_SIZE+x][y*SQ_SIZE+z]
+					fmt.print("", temp_val)
+					if temp_val != '.'
+					{
+						total_filled += 1
+					}
 				}
 				fmt.print(" ")
 			}
@@ -158,6 +164,7 @@ print_sudoku_board :: proc() {
 		fmt.println("+ - - - + - - - + - - - +")
 	}
 	fmt.println()
+	fmt.println(total_filled, "/", BOARD_SIZE*BOARD_SIZE)
 }
 
 //delete_potential_vals_from_cell
@@ -312,6 +319,69 @@ is_subset :: proc(slice1: [dynamic]rune, slice2: [dynamic]rune) -> (is_subset: b
 		}
 	}
 	return true, ok
+}
+//*
+find_hidden_sets_in_boxes :: proc() -> (ok: bool) {
+	ok = true
+	found := false
+	for i in 0..<SQ_SIZE {
+		for j in 0..<SQ_SIZE {
+			found, ok = find_hidden_sets_in_box(i, j)
+		}
+	}
+	return ok
+}
+// */
+
+find_hidden_sets_in_box :: proc(x: int, y: int, dbg_log:=false) -> (val_found: bool, ok: bool) {
+	ok = true
+	val_found = false
+
+	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
+	for set_size in 3..<5 {
+		if dbg_log { fmt.println("set_size: ", set_size) }
+		// For each box, go through each cell
+		for box_index1 in 0..<BOARD_SIZE {
+			box_cell1 := Position{(SQ_SIZE * x) + box_index1/3, (SQ_SIZE * y) + box_index1%%3}
+			// If the current cell has the set size we're looking for
+			if len(board_pot[box_cell1.x][box_cell1.y]) == set_size {
+				// Create dynamic slices to hold indices of interest
+				box_cells : [dynamic]int
+				append(&box_cells, box_index1)
+				if dbg_log { fmt.println("set:", board_pot[box_cell1.x][box_cell1.y]) }
+				// Go through this row again
+				for box_index2 in 0..<BOARD_SIZE {
+					box_cell2 := Position{(SQ_SIZE * x) + box_index2/3, (SQ_SIZE * y) + box_index2%%3}
+					// If the row index is not the row of interest and there are potential values
+					if box_index1 != box_index2 && len(board_pot[box_cell2.x][box_cell2.y]) > 0 {
+						is_subset, ok := is_subset(board_pot[box_cell2.x][box_cell2.y], board_pot[box_cell1.x][box_cell1.y])
+						// Add it to the box_cells slice
+						if is_subset {
+							append(&box_cells, box_index2)
+							if dbg_log { fmt.println("subset:", board_pot[box_cell2.x][box_cell2.y]) }
+						}
+					}
+				}
+				//*
+				if len(box_cells) >= set_size {
+					if dbg_log { fmt.println("box_cells:", box_cells) }
+					val_found = true
+					// Go through the row again
+					for box_index3 in 0..<BOARD_SIZE {
+						box_cell3 := Position{(SQ_SIZE * x) + box_index3/3, (SQ_SIZE * y) + box_index3%%3}
+						_, found := slice.linear_search(box_cells[:], box_index3)
+						// If this is not one of the indices of interest and there are multiple potential values
+						if !found && len(board_pot[box_cell1.x][box_cell1.y]) > 2 {
+							// delete the any values from the set from this cell
+							del_potential_vals(box_cell3.x, box_cell3.y, board_pot[box_cell1.x][box_cell1.y])
+						}
+					}
+				}
+				//*/
+			}
+		}
+	}
+	return val_found, ok
 }
 
 find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found: bool, ok: bool) {
@@ -758,11 +828,16 @@ main :: proc() {
 	//find_hidden_pairs_in_boxes()
 	//find_hidden_sets_in_cols()
 	find_hidden_sets_in_rows()
+	clean_up_stragglers()
+	find_hidden_pairs_in_boxes()
+	//find_hidden_sets_in_boxes()
 	//*
+	find_hidden_sets_in_boxes()
+	// */
+	//find_hidden_sets_in_box(2, 0, true)
+
 	print_sudoku_board()
 	print_sudoku_board_pot()
-	// */
-
 
 	fmt.println()
 	fmt.println("Sudoku end!")
