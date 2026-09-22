@@ -16,7 +16,7 @@ Position :: struct {
     y: int,
 }
 
-read_sudoku_csv :: proc(csv_path : string) -> (result: [][]rune, ok: bool) {
+read_sudoku_csv :: proc(csv_path : string) -> (result: [][]rune, ok:=true) {
 	records : [][]rune
     data, err := os.read_entire_file(csv_path, context.allocator)
     if err != nil { return records, false}
@@ -57,10 +57,10 @@ read_sudoku_csv :: proc(csv_path : string) -> (result: [][]rune, ok: bool) {
 		records[i] = rune_row
 	}
 	
-	return records, true
+	return records, ok
 }
 
-update_board_pot :: proc(reset:=false) -> (ok: bool) {
+update_board_pot :: proc(reset:=false) -> (ok:=true) {
 	potential_runes : [dynamic]rune
 	neighbors : [dynamic]rune
 	for x in 0..<BOARD_SIZE {
@@ -165,13 +165,11 @@ print_sudoku_board :: proc() {
 	fmt.println(total_filled, "/", BOARD_SIZE*BOARD_SIZE)
 }
 
-//delete_potential_vals_from_cell
 del_potential_vals :: proc(
 	row: int,
 	col: int,
 	rune_slice: [dynamic]rune
-) -> (ok: bool) {
-	ok = true
+) -> (ok:=true) {
 	//fmt.println("rune_slice", rune_slice)
 	new_rune_slice: [dynamic]rune
 	for pot_rune in board_pot[row][col] {
@@ -188,8 +186,7 @@ del_potential_vals :: proc(
 	return ok
 }
 
-find_hidden_pairs_in_boxes :: proc() -> (ok: bool) {
-	ok = true
+find_hidden_pairs_in_boxes :: proc() -> (ok:=true) {
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
 			ok = find_hidden_pairs_in_box(i, j)
@@ -247,8 +244,7 @@ find_hidden_pairs_in_box :: proc(x: int, y: int, dbg_log:=false) -> (ok: bool) {
 	return true
 }
 
-find_hidden_pairs_in_rows :: proc() -> (ok: bool) {
-	ok = true
+find_hidden_pairs_in_rows :: proc() -> (ok:=true) {
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_pair : [2]rune
 	rune_indices : [2]int
@@ -276,8 +272,7 @@ find_hidden_pairs_in_rows :: proc() -> (ok: bool) {
 	return ok
 }
 
-find_hidden_pairs_in_cols :: proc() -> (ok: bool) {
-	ok = true
+find_hidden_pairs_in_cols :: proc() -> (ok:=true) {
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_pair : [2]rune
 	rune_indices : [2]int
@@ -308,8 +303,7 @@ find_hidden_pairs_in_cols :: proc() -> (ok: bool) {
 is_subset :: proc(
 	slice1: [dynamic]rune,
 	slice2: [dynamic]rune
-) -> (is_subset: bool, ok: bool) {
-	ok = true
+) -> (is_subset: bool, ok:=true) {
 	if len(slice1) > len(slice2) {
 		return false, ok
 	}
@@ -325,9 +319,7 @@ is_subset :: proc(
 	return true, ok
 }
 
-
-find_hidden_sets_in_boxes :: proc() -> (ok: bool) {
-	ok = true
+find_hidden_sets_in_boxes :: proc() -> (ok:=true) {
 	found := false
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
@@ -390,9 +382,7 @@ find_hidden_sets_in_box :: proc(
 	return val_found, ok
 }
 
-find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found:=false, ok: bool) {
-	ok = true
-
+find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found:=false, ok:=true) {
 	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
 		if dbg_log { fmt.println("set_size: ", set_size) }
@@ -483,7 +473,6 @@ find_hidden_sets_in_rows :: proc(dbg_log:=false) -> (val_found:=false, ok:=true)
 	return val_found, ok
 }
 
-//TODO refine
 check_for_loners_in_rows :: proc(dbg_log:=false) -> (ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_slice : [BOARD_SIZE][dynamic]rune
@@ -767,7 +756,6 @@ clean_up_stragglers :: proc() -> (ok:=true) {
 	return ok
 }
 
-
 is_complete :: proc() -> (is_complete: bool, ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
@@ -802,12 +790,19 @@ main :: proc() {
 		fmt.print("error")
 	}
 
-
-	solved := true
-	for !solved {
+	solved := false
+	progress_made : bool
+	for {
+		progress_made = false
+		if !progress_made {
+			break
+		}
+	}
+	if !solved {
 		fmt.println("Not solved")
 	}
 
+	/*
 	check_for_loners_in_boxes()
 	check_for_loners_in_columns()
 	check_for_loners_in_rows()
@@ -822,7 +817,6 @@ main :: proc() {
 	clean_up_stragglers()
 	find_hidden_pairs_in_boxes()
 	//find_hidden_sets_in_boxes()
-	//*
 	find_hidden_sets_in_boxes()
 	// */
 	//find_hidden_sets_in_box(2, 0, true)
