@@ -4,8 +4,6 @@ import "core:encoding/csv"
 import "core:fmt"
 import "core:os"
 import "core:slice"
-import "core:strings"
-import "core:text/table"
 import "core:unicode/utf8"
 
 SQ_SIZE : int : 3
@@ -168,7 +166,11 @@ print_sudoku_board :: proc() {
 }
 
 //delete_potential_vals_from_cell
-del_potential_vals :: proc(row: int, col: int, rune_slice: [dynamic]rune) -> (ok: bool) {
+del_potential_vals :: proc(
+	row: int,
+	col: int,
+	rune_slice: [dynamic]rune
+) -> (ok: bool) {
 	ok = true
 	//fmt.println("rune_slice", rune_slice)
 	new_rune_slice: [dynamic]rune
@@ -186,7 +188,6 @@ del_potential_vals :: proc(row: int, col: int, rune_slice: [dynamic]rune) -> (ok
 	return ok
 }
 
-//TODO TODO makes it flexible up to N?
 find_hidden_pairs_in_boxes :: proc() -> (ok: bool) {
 	ok = true
 	for i in 0..<SQ_SIZE {
@@ -197,54 +198,55 @@ find_hidden_pairs_in_boxes :: proc() -> (ok: bool) {
 	return ok
 }
 
-find_hidden_pairs_in_box :: proc(x: int, y: int) -> (ok: bool) {
+find_hidden_pairs_in_box :: proc(x: int, y: int, dbg_log:=false) -> (ok: bool) {
 	pot_runes : [dynamic]rune
 	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
 	rune_pair : [2]rune
 	rune_indices : [2]int
-	//fmt.println("box:", x, ",", y)
+	if dbg_log{ fmt.println("box:", x, ",", y) }
 
 
 	for i in 0..<BOARD_SIZE-1 {
 		pos := Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
 		pot := board_pot[pos.x][pos.y][:]
-		//fmt.println("pot:", pot)
+		if dbg_log{ fmt.println("pot:", pot) }
 	}
 
 	//*
 	for i in 0..<BOARD_SIZE {
 		pos1 := Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
 		pot1 := board_pot[pos1.x][pos1.y][:]
-		//fmt.println("pos1:", pos1)
+		if dbg_log{ fmt.println("pos1:", pos1) }
 		for j in i+1..<BOARD_SIZE {
 			pos2 := Position{(SQ_SIZE * x) + j/3, (SQ_SIZE * y) + j%%3}
-			//fmt.println("pos2:", pos2)
+			if dbg_log{ fmt.println("pos2:", pos2) }
 			are_equal := slice.equal(pot1, board_pot[pos2.x][pos2.y][:])
 			if are_equal && len(pot1) == 2 {
 				fmt.println("pair found! ", pos1, " , ", pos2, ": values", pot1)
-				//fmt.println("pair found!")
-				//fmt.println(pos1, ": ", board_pot[pos1.x][pos1.y][:])
-				//fmt.println(pos2, ": ", board_pot[pos2.x][pos2.y][:])
+				if dbg_log {
+					fmt.println("pair found!")
+					fmt.println(pos1, ": ", board_pot[pos1.x][pos1.y][:])
+					fmt.println(pos2, ": ", board_pot[pos2.x][pos2.y][:])
+				}
 				for z in 0..<BOARD_SIZE {
-					//fmt.println("z:", z)
+					if dbg_log{ fmt.println("z:", z) }
 					if i != z && j != z {
 						pos := Position{(SQ_SIZE * x) + z/3, (SQ_SIZE * y) + z%%3}
-						//fmt.println(pos)
+						if dbg_log{ fmt.println(pos) }
 						del_potential_vals(pos.x, pos.y, board_pot[pos1.x][pos1.y])
 					}
 				}
 
 			}
 		}
-		//fmt.println()
+		if dbg_log{ fmt.println() }
 	}
 	// */
 	found := false
 	return true
 }
 
-//TODO TODO makes it flexible up to N?
 find_hidden_pairs_in_rows :: proc() -> (ok: bool) {
 	ok = true
 	rune_slice : [BOARD_SIZE][dynamic]rune
@@ -274,7 +276,6 @@ find_hidden_pairs_in_rows :: proc() -> (ok: bool) {
 	return ok
 }
 
-//TODO TODO makes it flexible up to N?
 find_hidden_pairs_in_cols :: proc() -> (ok: bool) {
 	ok = true
 	rune_slice : [BOARD_SIZE][dynamic]rune
@@ -304,7 +305,10 @@ find_hidden_pairs_in_cols :: proc() -> (ok: bool) {
 	return ok
 }
 
-is_subset :: proc(slice1: [dynamic]rune, slice2: [dynamic]rune) -> (is_subset: bool, ok: bool) {
+is_subset :: proc(
+	slice1: [dynamic]rune,
+	slice2: [dynamic]rune
+) -> (is_subset: bool, ok: bool) {
 	ok = true
 	if len(slice1) > len(slice2) {
 		return false, ok
@@ -320,7 +324,8 @@ is_subset :: proc(slice1: [dynamic]rune, slice2: [dynamic]rune) -> (is_subset: b
 	}
 	return true, ok
 }
-//*
+
+
 find_hidden_sets_in_boxes :: proc() -> (ok: bool) {
 	ok = true
 	found := false
@@ -331,11 +336,12 @@ find_hidden_sets_in_boxes :: proc() -> (ok: bool) {
 	}
 	return ok
 }
-// */
 
-find_hidden_sets_in_box :: proc(x: int, y: int, dbg_log:=false) -> (val_found: bool, ok: bool) {
-	ok = true
-	val_found = false
+find_hidden_sets_in_box :: proc(
+		x: int,
+		y: int,
+		dbg_log:=false
+	) -> (val_found:=false, ok:=true) {
 
 	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
@@ -384,9 +390,8 @@ find_hidden_sets_in_box :: proc(x: int, y: int, dbg_log:=false) -> (val_found: b
 	return val_found, ok
 }
 
-find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found: bool, ok: bool) {
+find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found:=false, ok: bool) {
 	ok = true
-	val_found = false
 
 	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
@@ -433,76 +438,59 @@ find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found: bool, ok: bool) 
 	return val_found, ok
 }
 
-find_hidden_sets_in_rows :: proc() -> (ok: bool) {
-	ok = true
-	rune_slice : [BOARD_SIZE][dynamic]rune
-	rune_set : [2]rune
-
-	/*
-	for set_size in 2->5
-		for row/col/box in boardsize
-			for cell in row/col/box
-				if cell's num pot runes == set_size
-					curr_cell_coordiante := index
-					curr_cell_pot_vals := list
-					set := list
-					for neighbor_cell in row/col/box
-						if neighbor_cell != curr_cell_coordiante:
-							is_subset_or_equal = neighbor_cell.pot_vals subset of curr_cell_pot_vals
-							if is_subset_or_equal:
-								set.append(neighbor_cell)
-					if len(set) == set_size
-						for neighbor_cell in row/col/box
-							if neighbor_cell not in set
-								del_potential_vals curr_cell_pot_vals
-	*/
+find_hidden_sets_in_rows :: proc(dbg_log:=false) -> (val_found:=false, ok:=true) {
+	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
-		//fmt.println("set_size: ", set_size)
+		if dbg_log { fmt.println("set_size: ", set_size) }
+		// Go through each row
 		for row_x in 0..<BOARD_SIZE {
+			// For each row, go through each column
 			for col_y1 in 0..<BOARD_SIZE {
+				// If the current cell has the set size we're looking for
 				if len(board_pot[row_x][col_y1]) == set_size {
-					temp_set : [dynamic][dynamic]rune
-					temp_indices : [dynamic]int
-					append(&temp_set, board_pot[row_x][col_y1])
-					append(&temp_indices, col_y1)
-					//fmt.println("temp_set:", temp_set)
+					// Create dynamic slices to hold indices of interest
+					col_indices : [dynamic]int
+					append(&col_indices, col_y1)
+					if dbg_log { fmt.println("set:", board_pot[row_x][col_y1]) }
+					// Go through this row again
 					for col_y2 in 0..<BOARD_SIZE {
+						// If the col index is not the col of interest and there are potential values
 						if col_y1 != col_y2 && len(board_pot[row_x][col_y2]) > 0 {
 							is_subset, ok := is_subset(board_pot[row_x][col_y2], board_pot[row_x][col_y1])
+							// Add it to the row_indices slice
 							if is_subset {
-								append(&temp_set, board_pot[row_x][col_y2])
-								append(&temp_indices, col_y2)
-								//fmt.println("subset:", board_pot[row_x][col_y2])
+								append(&col_indices, col_y2)
+								if dbg_log { fmt.println("subset:", board_pot[row_x][col_y2]) }
 							}
 						}
 					}
-					if len(temp_indices) >= set_size {
-						fmt.println("temp_set:", temp_set)
-						fmt.println("temp_indices:", temp_indices)
+					if len(col_indices) >= set_size {
+						if dbg_log { fmt.println("col_indices:", col_indices) }
+						// Go through the column again
 						for col_y3 in 0..<BOARD_SIZE {
-							_, found := slice.linear_search(temp_indices[:], col_y3)
-							if !found && len(board_pot[row_x][col_y3]) > 1 {
-								del_potential_vals(row_x, col_y3, temp_set[0])
+							_, found := slice.linear_search(col_indices[:], col_y3)
+							// If this is not one of the indices of interest and there are multiple potential values
+							if !found && len(board_pot[row_x][col_y3]) > 2 {
+								// delete the any values from the set from this cell
+								del_potential_vals(row_x, col_y3, board_pot[row_x][col_y1])
 							}
 						}
 					}
 				}
 			}
 		}
-		// */
 	}
-	return ok
+	return val_found, ok
 }
 
 //TODO refine
-check_for_loners_in_rows :: proc() -> (ok: bool) {
-	ok = true
+check_for_loners_in_rows :: proc(dbg_log:=false) -> (ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
 
 	for i in 0..<BOARD_SIZE {
-		//fmt.println("row:", i)
+		if dbg_log { fmt.println("row:", i) }
 		for j in 0..<BOARD_SIZE {
 			rune_counter[j] = 0
 		}
@@ -510,16 +498,18 @@ check_for_loners_in_rows :: proc() -> (ok: bool) {
 			pos := Position{i, j}
 			pot_runes, ok = get_possible_values(pos)
 			for pot_rune in pot_runes {
-				//fmt.print(pot_rune)
+				if dbg_log { fmt.print(pot_rune) }
 				index := int(pot_rune - '0')
-				//fmt.print(index, ' ')
+				if dbg_log { fmt.print(index, ' ') }
 				rune_counter[index-1] += 1
 			}
 			rune_slice[j] = pot_runes
 			
 		}
-		//fmt.println("rune_counter:", rune_counter)
-		//fmt.println("rune_slice:", rune_slice)
+		if dbg_log { 
+			fmt.println("rune_counter:", rune_counter)
+			fmt.println("rune_slice:", rune_slice)
+		}
 
 		found := false
 		for x in 0..<BOARD_SIZE {
@@ -545,15 +535,13 @@ check_for_loners_in_rows :: proc() -> (ok: bool) {
 	return ok
 }
 
-//TODO refine
-check_for_loners_in_columns :: proc() -> (ok: bool) {
-	ok = true
+check_for_loners_in_columns :: proc(dbg_log:=true) -> (ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
 
 	for i in 0..<BOARD_SIZE {
-		//fmt.println("column:", i)
+		if dbg_log { fmt.println("column:", i) }
 		for j in 0..<BOARD_SIZE {
 			rune_counter[j] = 0
 		}
@@ -561,16 +549,18 @@ check_for_loners_in_columns :: proc() -> (ok: bool) {
 			pos := Position{j, i}
 			pot_runes, ok = get_possible_values(pos)
 			for pot_rune in pot_runes {
-				//fmt.print(pot_rune)
+				if dbg_log { fmt.print(pot_rune) }
 				index := int(pot_rune - '1')
-				//fmt.print(index, ' ')
+				if dbg_log { fmt.print(index, ' ') }
 				rune_counter[index] += 1
 			}
 			rune_slice[j] = pot_runes
 			
 		}
-		//fmt.println("rune_counter:", rune_counter)
-		//fmt.println("rune_slice:", rune_slice)
+		if dbg_log { 
+			fmt.println("rune_counter:", rune_counter)
+			fmt.println("rune_slice:", rune_slice)
+		}
 
 		found := false
 		for x in 0..<BOARD_SIZE {
@@ -596,8 +586,7 @@ check_for_loners_in_columns :: proc() -> (ok: bool) {
 	return ok
 }
 
-check_for_loners_in_boxes :: proc() -> (ok: bool) {
-	ok = true
+check_for_loners_in_boxes :: proc() -> (ok:=true) {
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
 			ok = check_for_loners_in_box(i, j)
@@ -606,7 +595,7 @@ check_for_loners_in_boxes :: proc() -> (ok: bool) {
 	return ok
 }
 
-check_for_loners_in_box :: proc(x: int, y: int) -> (ok: bool) {
+check_for_loners_in_box :: proc(x: int, y: int) -> (ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
@@ -653,7 +642,7 @@ check_for_loners_in_box :: proc(x: int, y: int) -> (ok: bool) {
 	return true
 }
 
-get_neighbors_in_box :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
+get_neighbors_in_box :: proc(x: int, y: int) -> (result: [dynamic]rune, ok:=true) {
 	neighbors : [dynamic]rune
 	box := Position{x/3,  y/3}
     // defer delete(box) not needed, Local variables are allocated on the stack and are deleted upon exit
@@ -670,10 +659,10 @@ get_neighbors_in_box :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool
 		}
 	}
 	//fmt.println("neighbors in square:", neighbors)
-	return neighbors, true
+	return neighbors, ok
 }
 
-get_neighbors_in_row :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
+get_neighbors_in_row :: proc(x: int, y: int) -> (result: [dynamic]rune, ok:=true) {
 	neighbors : [dynamic]rune
 
 	for i in 0..<BOARD_SIZE {
@@ -683,10 +672,10 @@ get_neighbors_in_row :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool
 		}
 	}
 	//fmt.println("neighbors in row:", neighbors)
-	return neighbors, true
+	return neighbors, ok
 }
 
-get_neighbors_in_col :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool) {
+get_neighbors_in_col :: proc(x: int, y: int) -> (result: [dynamic]rune, ok:=true) {
 	neighbors : [dynamic]rune
 
 	for i in 0..<BOARD_SIZE {
@@ -696,10 +685,13 @@ get_neighbors_in_col :: proc(x: int, y: int) -> (result: [dynamic]rune, ok: bool
 		}
 	}
 	//fmt.println("neighbors in column:", neighbors)
-	return neighbors, true
+	return neighbors, ok
 }
 
-get_possible_values :: proc(pos: Position, dbg_print:=false) -> (result: [dynamic]rune, ok: bool) {
+get_possible_values :: proc(
+	pos: Position,
+	dbg_print:=false
+) -> (result: [dynamic]rune, ok:=true) {
 	possible_vals : [dynamic]rune
 
 	if board[pos.x][pos.y] != '.' {
@@ -751,11 +743,10 @@ get_possible_values :: proc(pos: Position, dbg_print:=false) -> (result: [dynami
 		fmt.println("position:", pos)
 		fmt.println("possible values:", possible_vals)
 	}
-	return possible_vals, true
+	return possible_vals, ok
 }
 
-clean_up_stragglers :: proc() -> (bool) {
-	ok := true
+clean_up_stragglers :: proc() -> (ok:=true) {
 	update_board_pot()
 	stragglers_found := false
 	for x in 0..<BOARD_SIZE {
@@ -777,7 +768,7 @@ clean_up_stragglers :: proc() -> (bool) {
 }
 
 
-is_complete :: proc() -> (is_complete: bool, ok: bool) {
+is_complete :: proc() -> (is_complete: bool, ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
