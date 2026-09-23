@@ -319,7 +319,7 @@ is_subset :: proc(
 	return true, ok
 }
 
-find_hidden_sets_in_boxes :: proc() -> (ok:=true) {
+find_hidden_sets_in_boxes :: proc(progress:=false) -> (ok:=true) {
 	found := false
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
@@ -333,7 +333,7 @@ find_hidden_sets_in_box :: proc(
 		x: int,
 		y: int,
 		dbg_log:=false
-	) -> (val_found:=false, ok:=true) {
+	) -> (set_found:=false, ok:=true) {
 
 	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
@@ -363,7 +363,7 @@ find_hidden_sets_in_box :: proc(
 				//*
 				if len(box_cells) >= set_size {
 					if dbg_log { fmt.println("box_cells:", box_cells) }
-					val_found = true
+					set_found = true
 					// Go through the row again
 					for box_index3 in 0..<BOARD_SIZE {
 						box_cell3 := Position{(SQ_SIZE * x) + box_index3/3, (SQ_SIZE * y) + box_index3%%3}
@@ -379,10 +379,10 @@ find_hidden_sets_in_box :: proc(
 			}
 		}
 	}
-	return val_found, ok
+	return set_found, ok
 }
 
-find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found:=false, ok:=true) {
+find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (set_found:=false, ok:=true) {
 	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
 		if dbg_log { fmt.println("set_size: ", set_size) }
@@ -410,7 +410,7 @@ find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found:=false, ok:=true)
 					}
 					if len(row_indices) >= set_size {
 						if dbg_log { fmt.println("row_indices:", row_indices) }
-						val_found = true
+						set_found = true
 						// Go through the row again
 						for row_x3 in 0..<BOARD_SIZE {
 							_, found := slice.linear_search(row_indices[:], row_x3)
@@ -425,10 +425,10 @@ find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (val_found:=false, ok:=true)
 			}
 		}
 	}
-	return val_found, ok
+	return set_found, ok
 }
 
-find_hidden_sets_in_rows :: proc(dbg_log:=false) -> (val_found:=false, ok:=true) {
+find_hidden_sets_in_rows :: proc(set_found:^bool, dbg_log:=false) -> (ok:=true) {
 	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
 		if dbg_log { fmt.println("set_size: ", set_size) }
@@ -456,6 +456,7 @@ find_hidden_sets_in_rows :: proc(dbg_log:=false) -> (val_found:=false, ok:=true)
 					}
 					if len(col_indices) >= set_size {
 						if dbg_log { fmt.println("col_indices:", col_indices) }
+						set_found^ = true
 						// Go through the column again
 						for col_y3 in 0..<BOARD_SIZE {
 							_, found := slice.linear_search(col_indices[:], col_y3)
@@ -470,10 +471,21 @@ find_hidden_sets_in_rows :: proc(dbg_log:=false) -> (val_found:=false, ok:=true)
 			}
 		}
 	}
+	return ok
+}
+
+
+check_for_loners :: proc(dbg_log:=false) -> (val_found:=false, ok:=true) {
+	loner_in_box, box_ok := check_for_loners_in_boxes()
+	loner_in_col, col_ok := check_for_loners_in_columns()
+	loner_in_row, row_ok := check_for_loners_in_rows()
+	ok = box_ok || col_ok || row_ok
+	val_found = loner_in_box || loner_in_col || loner_in_row
 	return val_found, ok
 }
 
-check_for_loners_in_rows :: proc(dbg_log:=false) -> (ok:=true) {
+check_for_loners_in_rows :: proc(dbg_log:=false) ->
+(val_found:=false, ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
@@ -507,8 +519,9 @@ check_for_loners_in_rows :: proc(dbg_log:=false) -> (ok:=true) {
 				for j in 0..<BOARD_SIZE {
 					_, found = slice.linear_search(rune_slice[j][:], curr_rune)
 					if found {
+						val_found = true
 						pos := Position{i, j}
-						fmt.println("value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
+						fmt.println("check_for_loners_in_rows - value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
 						board[pos.x][pos.y] = curr_rune
 						break
 					}
@@ -521,10 +534,11 @@ check_for_loners_in_rows :: proc(dbg_log:=false) -> (ok:=true) {
 		}
 	}
 
-	return ok
+	return val_found, ok
 }
 
-check_for_loners_in_columns :: proc(dbg_log:=true) -> (ok:=true) {
+check_for_loners_in_columns :: proc(dbg_log:=false) ->
+(val_found:=false, ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
@@ -558,8 +572,9 @@ check_for_loners_in_columns :: proc(dbg_log:=true) -> (ok:=true) {
 				for j in 0..<BOARD_SIZE {
 					_, found = slice.linear_search(rune_slice[j][:], curr_rune)
 					if found {
+						val_found = true
 						pos := Position{j, i}
-						fmt.println("value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
+						fmt.println("check_for_loners_in_columns - value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
 						board[pos.x][pos.y] = curr_rune
 						break
 					}
@@ -572,24 +587,28 @@ check_for_loners_in_columns :: proc(dbg_log:=true) -> (ok:=true) {
 		}
 	}
 
-	return ok
+	return val_found, ok
 }
 
-check_for_loners_in_boxes :: proc() -> (ok:=true) {
+check_for_loners_in_boxes :: proc(dbg_log:=false) ->
+(val_found:=false, ok:=true) {
+	temp_val_found : bool
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
-			ok = check_for_loners_in_box(i, j)
+			temp_val_found, ok = check_for_loners_in_box(i, j, dbg_log)
+			val_found = val_found || temp_val_found
 		}
 	}
-	return ok
+	return val_found, ok
 }
 
-check_for_loners_in_box :: proc(x: int, y: int) -> (ok:=true) {
+check_for_loners_in_box :: proc(x: int, y: int, dbg_log:=false) ->
+(val_found:=false, ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
 	box := Position{x,  y}
-	//fmt.println("box:", x, ",", y)
+	if dbg_log { fmt.println("box:", x, ",", y) }
 
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
@@ -615,8 +634,9 @@ check_for_loners_in_box :: proc(x: int, y: int) -> (ok:=true) {
 				for j in 0..<SQ_SIZE {
 					_, found = slice.linear_search(rune_map[i][j][:], curr_rune)
 					if found {
+						val_found = true
 						pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
-						fmt.println("value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
+						fmt.println("check_for_loners_in_box - value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
 						board[pos.x][pos.y] = curr_rune
 						break
 					}
@@ -628,10 +648,11 @@ check_for_loners_in_box :: proc(x: int, y: int) -> (ok:=true) {
 			}
 		}
 	}
-	return true
+	return val_found, ok
 }
 
-get_neighbors_in_box :: proc(x: int, y: int) -> (result: [dynamic]rune, ok:=true) {
+get_neighbors_in_box :: proc(x: int, y: int) -> 
+(result: [dynamic]rune, ok:=true) {
 	neighbors : [dynamic]rune
 	box := Position{x/3,  y/3}
     // defer delete(box) not needed, Local variables are allocated on the stack and are deleted upon exit
@@ -781,31 +802,44 @@ main :: proc() {
 	update_board_pot(reset=true)
     if !ok { return }
 
-	print_sudoku_board_pot()
 	print_sudoku_board()
+	print_sudoku_board_pot()
 
 	//get_possible_values(Position{0, 5}, true)
 	ok = clean_up_stragglers()
-	if !ok {
-		fmt.print("error")
-	}
+	if !ok { fmt.print("error") }
 
 	solved := false
 	progress_made : bool
+	tmp_progress_made : bool
+	/*
+	x: int = 42
+	ptr: ^int = &x  // ptr is a pointer to an integer
+	// Dereferencing to read or write value
+	val: int = ptr^  // val is now 42
+	ptr^ = 100       // x is now 100
+	*/
 	for {
-		progress_made = false
-		if !progress_made {
+		//Go through all of our algorithms, trying to fill in cells
+		tmp_progress_made, ok = check_for_loners()
+		ok = find_hidden_sets_in_rows(&progress_made)
+		
+		update_board_pot()
+		clean_up_stragglers()
+		
+		if !(tmp_progress_made || progress_made) {
 			break
 		}
+		progress_made = false
+		tmp_progress_made = false
 	}
 	if !solved {
+		print_sudoku_board()
+		print_sudoku_board_pot()
 		fmt.println("Not solved")
 	}
 
 	/*
-	check_for_loners_in_boxes()
-	check_for_loners_in_columns()
-	check_for_loners_in_rows()
 
 	update_board_pot()
 	clean_up_stragglers()
@@ -813,7 +847,6 @@ main :: proc() {
 	//find_hidden_pairs_in_cols()
 	//find_hidden_pairs_in_boxes()
 	//find_hidden_sets_in_cols()
-	find_hidden_sets_in_rows()
 	clean_up_stragglers()
 	find_hidden_pairs_in_boxes()
 	//find_hidden_sets_in_boxes()
@@ -821,8 +854,6 @@ main :: proc() {
 	// */
 	//find_hidden_sets_in_box(2, 0, true)
 
-	print_sudoku_board()
-	print_sudoku_board_pot()
 
 	fmt.println()
 	fmt.println("Sudoku end!")
