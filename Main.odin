@@ -169,7 +169,7 @@ del_potential_vals :: proc(
 	row: int,
 	col: int,
 	rune_slice: [dynamic]rune
-) -> (ok:=true) {
+) -> (num_del:int, ok:=true) {
 	//fmt.println("rune_slice", rune_slice)
 	new_rune_slice: [dynamic]rune
 	for pot_rune in board_pot[row][col] {
@@ -178,12 +178,13 @@ del_potential_vals :: proc(
 			append(&new_rune_slice, pot_rune)
 		}
 	}
+	num_del = len(board_pot[row][col]) - len(new_rune_slice)
 	board_pot[row][col] = new_rune_slice
 	if len(new_rune_slice) == 1 {
 		board[row][col] = new_rune_slice[0]
 		pop(&board_pot[row][col])
 	}
-	return ok
+	return num_del, ok
 }
 
 find_hidden_pairs_in_boxes :: proc() -> (ok:=true) {
@@ -428,7 +429,7 @@ find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (set_found:=false, ok:=true)
 	return set_found, ok
 }
 
-find_hidden_sets_in_rows :: proc(set_found:^bool, dbg_log:=false) -> (ok:=true) {
+find_hidden_sets_in_rows :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=true) {
 	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
 		if dbg_log { fmt.println("set_size: ", set_size) }
@@ -456,14 +457,21 @@ find_hidden_sets_in_rows :: proc(set_found:^bool, dbg_log:=false) -> (ok:=true) 
 					}
 					if len(col_indices) >= set_size {
 						if dbg_log { fmt.println("col_indices:", col_indices) }
-						set_found^ = true
 						// Go through the column again
 						for col_y3 in 0..<BOARD_SIZE {
 							_, found := slice.linear_search(col_indices[:], col_y3)
 							// If this is not one of the indices of interest and there are multiple potential values
 							if !found && len(board_pot[row_x][col_y3]) > 2 {
 								// delete the any values from the set from this cell
-								del_potential_vals(row_x, col_y3, board_pot[row_x][col_y1])
+								tmp_copy := board_pot[row_x][col_y3][:]
+								num_del, _ := del_potential_vals(row_x, col_y3, board_pot[row_x][col_y1])
+								if num_del > 1 {
+									if true {
+										fmt.println("num_del:", num_del)
+										fmt.println("board_pot[row_x][col_y3]:", tmp_copy)
+									}
+									progress_made^ = true
+								}
 							}
 						}
 					}
@@ -823,10 +831,14 @@ main :: proc() {
 		//Go through all of our algorithms, trying to fill in cells
 		tmp_progress_made, ok = check_for_loners()
 		ok = find_hidden_sets_in_rows(&progress_made)
+		print_sudoku_board()
+		print_sudoku_board_pot()
 		
 		update_board_pot()
-		clean_up_stragglers()
+		//clean_up_stragglers()
 		
+		fmt.println("progress_made:", progress_made)
+		fmt.println("tmp_progress_made:", tmp_progress_made)
 		if !(tmp_progress_made || progress_made) {
 			break
 		}
