@@ -483,17 +483,16 @@ find_hidden_sets_in_rows :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=tr
 }
 
 
-check_for_loners :: proc(dbg_log:=false) -> (val_found:=false, ok:=true) {
-	loner_in_box, box_ok := check_for_loners_in_boxes()
-	loner_in_col, col_ok := check_for_loners_in_columns()
-	loner_in_row, row_ok := check_for_loners_in_rows()
+check_for_loners :: proc(progress_ptr:^bool, dbg_log:=false) -> (ok:=true) {
+	box_ok := check_for_loners_in_boxes(progress_ptr)
+	col_ok := check_for_loners_in_columns(progress_ptr)
+	row_ok := check_for_loners_in_rows(progress_ptr)
 	ok = box_ok || col_ok || row_ok
-	val_found = loner_in_box || loner_in_col || loner_in_row
-	return val_found, ok
+	return ok
 }
 
-check_for_loners_in_rows :: proc(dbg_log:=false) ->
-(val_found:=false, ok:=true) {
+check_for_loners_in_rows :: proc(progress_ptr:^bool, dbg_log:=false) ->
+(ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
@@ -527,7 +526,7 @@ check_for_loners_in_rows :: proc(dbg_log:=false) ->
 				for j in 0..<BOARD_SIZE {
 					_, found = slice.linear_search(rune_slice[j][:], curr_rune)
 					if found {
-						val_found = true
+						progress_ptr^ = true
 						pos := Position{i, j}
 						fmt.println("check_for_loners_in_rows - value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
 						board[pos.x][pos.y] = curr_rune
@@ -542,11 +541,11 @@ check_for_loners_in_rows :: proc(dbg_log:=false) ->
 		}
 	}
 
-	return val_found, ok
+	return ok
 }
 
-check_for_loners_in_columns :: proc(dbg_log:=false) ->
-(val_found:=false, ok:=true) {
+check_for_loners_in_columns :: proc(progress_ptr:^bool, dbg_log:=false) ->
+(ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
@@ -580,7 +579,7 @@ check_for_loners_in_columns :: proc(dbg_log:=false) ->
 				for j in 0..<BOARD_SIZE {
 					_, found = slice.linear_search(rune_slice[j][:], curr_rune)
 					if found {
-						val_found = true
+						progress_ptr^ = true
 						pos := Position{j, i}
 						fmt.println("check_for_loners_in_columns - value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
 						board[pos.x][pos.y] = curr_rune
@@ -595,23 +594,21 @@ check_for_loners_in_columns :: proc(dbg_log:=false) ->
 		}
 	}
 
-	return val_found, ok
+	return ok
 }
 
-check_for_loners_in_boxes :: proc(dbg_log:=false) ->
-(val_found:=false, ok:=true) {
-	temp_val_found : bool
+check_for_loners_in_boxes :: proc(progress_ptr:^bool, dbg_log:=false) ->
+(ok:=true) {
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
-			temp_val_found, ok = check_for_loners_in_box(i, j, dbg_log)
-			val_found = val_found || temp_val_found
+			ok = check_for_loners_in_box(i, j, progress_ptr, dbg_log)
 		}
 	}
-	return val_found, ok
+	return ok
 }
 
-check_for_loners_in_box :: proc(x: int, y: int, dbg_log:=false) ->
-(val_found:=false, ok:=true) {
+check_for_loners_in_box :: proc(x: int, y: int, progress_ptr:^bool, dbg_log:=false) ->
+(ok:=true) {
 	pot_runes : [dynamic]rune
 	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
@@ -642,7 +639,7 @@ check_for_loners_in_box :: proc(x: int, y: int, dbg_log:=false) ->
 				for j in 0..<SQ_SIZE {
 					_, found = slice.linear_search(rune_map[i][j][:], curr_rune)
 					if found {
-						val_found = true
+						progress_ptr^ = true
 						pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
 						fmt.println("check_for_loners_in_box - value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
 						board[pos.x][pos.y] = curr_rune
@@ -656,7 +653,7 @@ check_for_loners_in_box :: proc(x: int, y: int, dbg_log:=false) ->
 			}
 		}
 	}
-	return val_found, ok
+	return ok
 }
 
 get_neighbors_in_box :: proc(x: int, y: int) -> 
@@ -819,7 +816,6 @@ main :: proc() {
 
 	solved := false
 	progress_made : bool
-	tmp_progress_made : bool
 	/*
 	x: int = 42
 	ptr: ^int = &x  // ptr is a pointer to an integer
@@ -829,7 +825,7 @@ main :: proc() {
 	*/
 	for {
 		//Go through all of our algorithms, trying to fill in cells
-		tmp_progress_made, ok = check_for_loners()
+		ok = check_for_loners(&progress_made)
 		ok = find_hidden_sets_in_rows(&progress_made)
 		print_sudoku_board()
 		print_sudoku_board_pot()
@@ -838,12 +834,10 @@ main :: proc() {
 		//clean_up_stragglers()
 		
 		fmt.println("progress_made:", progress_made)
-		fmt.println("tmp_progress_made:", tmp_progress_made)
-		if !(tmp_progress_made || progress_made) {
+		if !(progress_made) {
 			break
 		}
 		progress_made = false
-		tmp_progress_made = false
 	}
 	if !solved {
 		print_sudoku_board()
