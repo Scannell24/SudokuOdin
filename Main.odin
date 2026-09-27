@@ -187,16 +187,28 @@ del_potential_vals :: proc(
 	return num_del, ok
 }
 
-find_hidden_pairs_in_boxes :: proc() -> (ok:=true) {
+find_hidden_pairs :: proc(progress_ptr:^bool) -> (ok:=true) {
+	box_ok := find_hidden_pairs_in_boxes(progress_ptr)
+	col_ok := find_hidden_pairs_in_rows(progress_ptr)
+	row_ok := find_hidden_pairs_in_cols(progress_ptr)
+	ok = box_ok || col_ok || row_ok
+	return ok
+}
+
+find_hidden_pairs_in_boxes :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=true) {
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
-			ok = find_hidden_pairs_in_box(i, j)
+			ok = find_hidden_pairs_in_box(progress_made, i, j, dbg_log)
 		}
 	}
 	return ok
 }
 
-find_hidden_pairs_in_box :: proc(x: int, y: int, dbg_log:=false) -> (ok: bool) {
+find_hidden_pairs_in_box :: proc(
+	progress_made:^bool,
+	x: int, y: int,
+	dbg_log:=false
+) -> (ok: bool) {
 	pot_runes : [dynamic]rune
 	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
 	rune_counter : [BOARD_SIZE]int
@@ -221,21 +233,24 @@ find_hidden_pairs_in_box :: proc(x: int, y: int, dbg_log:=false) -> (ok: bool) {
 			if dbg_log{ fmt.println("pos2:", pos2) }
 			are_equal := slice.equal(pot1, board_pot[pos2.x][pos2.y][:])
 			if are_equal && len(pot1) == 2 {
-				fmt.println("pair found! ", pos1, " , ", pos2, ": values", pot1)
 				if dbg_log {
 					fmt.println("pair found!")
 					fmt.println(pos1, ": ", board_pot[pos1.x][pos1.y][:])
 					fmt.println(pos2, ": ", board_pot[pos2.x][pos2.y][:])
 				}
+				num_del := 0
 				for z in 0..<BOARD_SIZE {
 					if dbg_log{ fmt.println("z:", z) }
 					if i != z && j != z {
 						pos := Position{(SQ_SIZE * x) + z/3, (SQ_SIZE * y) + z%%3}
 						if dbg_log{ fmt.println(pos) }
-						del_potential_vals(pos.x, pos.y, board_pot[pos1.x][pos1.y])
+						num_del, ok = del_potential_vals(pos.x, pos.y, board_pot[pos1.x][pos1.y])
 					}
 				}
-
+				if num_del > 0 {
+					fmt.println("pair found in box! ", pos1, " , ", pos2, ": values", pot1)
+					progress_made^ = true
+				}
 			}
 		}
 		if dbg_log{ fmt.println() }
@@ -245,7 +260,7 @@ find_hidden_pairs_in_box :: proc(x: int, y: int, dbg_log:=false) -> (ok: bool) {
 	return true
 }
 
-find_hidden_pairs_in_rows :: proc() -> (ok:=true) {
+find_hidden_pairs_in_rows :: proc(progress_made:^bool) -> (ok:=true) {
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_pair : [2]rune
 	rune_indices : [2]int
@@ -258,11 +273,15 @@ find_hidden_pairs_in_rows :: proc() -> (ok:=true) {
 					if len(board_pot[x][j]) == 2 {
 						are_equal := slice.equal(board_pot[x][i][:], board_pot[x][j][:])
 						if are_equal {
-							fmt.println("pair found! row [", x, "] cols [", i, ",", j, "]: values", board_pot[x][i])
+							num_del := 0
 							for z in 0..<BOARD_SIZE {
 								if i != z && j != z {
-									del_potential_vals(x, z, board_pot[x][i])
+									num_del, ok = del_potential_vals(x, z, board_pot[x][i])
 								}
+							}
+							if num_del > 0 {
+								fmt.println("pair found in row [", x, "] cols [", i, ",", j, "]: values", board_pot[x][i])
+								progress_made^ = true
 							}
 						}
 					}
@@ -273,24 +292,28 @@ find_hidden_pairs_in_rows :: proc() -> (ok:=true) {
 	return ok
 }
 
-find_hidden_pairs_in_cols :: proc() -> (ok:=true) {
+find_hidden_pairs_in_cols :: proc(progress_made:^bool) -> (ok:=true) {
 	rune_slice : [BOARD_SIZE][dynamic]rune
 	rune_pair : [2]rune
 	rune_indices : [2]int
-	for x in 0..<BOARD_SIZE {
+	for y in 0..<BOARD_SIZE {
 		for i in 0..<BOARD_SIZE {
 			//fmt.println("i: ", i)
-			if len(board_pot[i][x]) > 0 {
+			if len(board_pot[i][y]) > 0 {
 				for j in i+1..<BOARD_SIZE {
 					//fmt.print(j, " ")
-					if len(board_pot[j][x]) == 2 {
-						are_equal := slice.equal(board_pot[i][x][:], board_pot[j][x][:])
+					if len(board_pot[j][y]) == 2 {
+						are_equal := slice.equal(board_pot[i][y][:], board_pot[j][y][:])
 						if are_equal {
-							fmt.println("pair found! col [", x, "] rows [", i, ",", j, "]: values", board_pot[i][x])
+							num_del := 0
 							for z in 0..<BOARD_SIZE {
 								if i != z && j != z {
-									del_potential_vals(z, x, board_pot[i][x])
+									num_del, ok = del_potential_vals(z, y, board_pot[i][y])
 								}
+							}
+							if num_del > 0 {
+								fmt.println("pair found in col [", y, "] rows [", i, ",", j, "]: values", board_pot[i][y])
+								progress_made^ = true
 							}
 						}
 					}
@@ -320,22 +343,29 @@ is_subset :: proc(
 	return true, ok
 }
 
-find_hidden_sets_in_boxes :: proc(progress:=false) -> (ok:=true) {
-	found := false
+find_hidden_sets :: proc(progress_ptr:^bool) -> (ok:=true) {
+	box_ok := find_hidden_sets_in_boxes(progress_ptr)
+	col_ok := find_hidden_sets_in_rows(progress_ptr)
+	row_ok := find_hidden_sets_in_cols(progress_ptr)
+	ok = box_ok || col_ok || row_ok
+	return ok
+}
+
+find_hidden_sets_in_boxes :: proc(progress_made:^bool) -> (ok:=true) {
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
-			found, ok = find_hidden_sets_in_box(i, j)
+			ok = find_hidden_sets_in_box(progress_made, i, j)
 		}
 	}
 	return ok
 }
 
 find_hidden_sets_in_box :: proc(
-		x: int,
-		y: int,
-		dbg_log:=false
-	) -> (set_found:=false, ok:=true) {
-
+	progress_made:^bool,
+	x: int,
+	y: int,
+	dbg_log:=false
+) -> (ok:=true) {
 	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
 		if dbg_log { fmt.println("set_size: ", set_size) }
@@ -364,15 +394,21 @@ find_hidden_sets_in_box :: proc(
 				//*
 				if len(box_cells) >= set_size {
 					if dbg_log { fmt.println("box_cells:", box_cells) }
-					set_found = true
+					num_del := 0
 					// Go through the row again
 					for box_index3 in 0..<BOARD_SIZE {
 						box_cell3 := Position{(SQ_SIZE * x) + box_index3/3, (SQ_SIZE * y) + box_index3%%3}
 						_, found := slice.linear_search(box_cells[:], box_index3)
 						// If this is not one of the indices of interest and there are multiple potential values
-						if !found && len(board_pot[box_cell1.x][box_cell1.y]) > 2 {
+						tmp_copy := board_pot[box_cell1.x][box_cell1.y][:]
+						if !found && len(tmp_copy) > 2 {
 							// delete the any values from the set from this cell
-							del_potential_vals(box_cell3.x, box_cell3.y, board_pot[box_cell1.x][box_cell1.y])
+							num_del, ok = del_potential_vals(box_cell3.x, box_cell3.y, board_pot[box_cell1.x][box_cell1.y])
+							if num_del > 0 {
+								fmt.println("num_del:", num_del)
+								fmt.println("board_pot[row_x][col_y3]:", tmp_copy)
+								progress_made^ = true
+							}
 						}
 					}
 				}
@@ -380,10 +416,10 @@ find_hidden_sets_in_box :: proc(
 			}
 		}
 	}
-	return set_found, ok
+	return ok
 }
 
-find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (set_found:=false, ok:=true) {
+find_hidden_sets_in_cols :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=true) {
 	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
 	for set_size in 3..<5 {
 		if dbg_log { fmt.println("set_size: ", set_size) }
@@ -411,14 +447,20 @@ find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (set_found:=false, ok:=true)
 					}
 					if len(row_indices) >= set_size {
 						if dbg_log { fmt.println("row_indices:", row_indices) }
-						set_found = true
+						num_del := 0
 						// Go through the row again
 						for row_x3 in 0..<BOARD_SIZE {
 							_, found := slice.linear_search(row_indices[:], row_x3)
 							// If this is not one of the indices of interest and there are multiple potential values
 							if !found && len(board_pot[row_x1][col_y]) > 2 {
 								// delete the any values from the set from this cell
-								del_potential_vals(row_x3, col_y, board_pot[row_x1][col_y])
+								tmp_copy := board_pot[row_x1][col_y][:]
+								num_del, ok = del_potential_vals(row_x3, col_y, board_pot[row_x1][col_y])
+								if num_del > 0 {
+									fmt.println("num_del:", num_del)
+									fmt.println("board_pot[row_x1][col_y]:", tmp_copy)
+									progress_made^ = true
+								}
 							}
 						}
 					}
@@ -426,7 +468,7 @@ find_hidden_sets_in_cols :: proc(dbg_log:=false) -> (set_found:=false, ok:=true)
 			}
 		}
 	}
-	return set_found, ok
+	return ok
 }
 
 find_hidden_sets_in_rows :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=true) {
@@ -459,17 +501,16 @@ find_hidden_sets_in_rows :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=tr
 						if dbg_log { fmt.println("col_indices:", col_indices) }
 						// Go through the column again
 						for col_y3 in 0..<BOARD_SIZE {
+							num_del := 0
 							_, found := slice.linear_search(col_indices[:], col_y3)
 							// If this is not one of the indices of interest and there are multiple potential values
 							if !found && len(board_pot[row_x][col_y3]) > 2 {
-								// delete the any values from the set from this cell
+								// delete any of the set's values from the cell
 								tmp_copy := board_pot[row_x][col_y3][:]
-								num_del, _ := del_potential_vals(row_x, col_y3, board_pot[row_x][col_y1])
-								if num_del > 1 {
-									if true {
-										fmt.println("num_del:", num_del)
-										fmt.println("board_pot[row_x][col_y3]:", tmp_copy)
-									}
+								num_del, ok = del_potential_vals(row_x, col_y3, board_pot[row_x][col_y1])
+								if num_del > 0 {
+									fmt.println("num_del:", num_del)
+									fmt.println("board_pot[row_x][col_y3]:", tmp_copy)
 									progress_made^ = true
 								}
 							}
@@ -761,7 +802,7 @@ get_possible_values :: proc(
 	return possible_vals, ok
 }
 
-clean_up_stragglers :: proc() -> (ok:=true) {
+clean_up_stragglers :: proc(progress_ptr:^bool, dbg_log:=false) -> (ok:=true) {
 	update_board_pot()
 	stragglers_found := false
 	for x in 0..<BOARD_SIZE {
@@ -771,33 +812,61 @@ clean_up_stragglers :: proc() -> (ok:=true) {
 					fmt.println("position: {", x, ",", y, "} =", board_pot[x][y][0])
 					board[x][y] = board_pot[x][y][0]
 					stragglers_found = true
+					progress_ptr^ = true
 				}
 			}
 		}
 	}
 	if stragglers_found {
 		// do another sweep
-		ok = clean_up_stragglers()
+		ok = clean_up_stragglers(progress_ptr)
 	}
 	return ok
 }
 
-is_complete :: proc() -> (is_complete: bool, ok:=true) {
-	pot_runes : [dynamic]rune
-	rune_map : [SQ_SIZE][SQ_SIZE][dynamic]rune
-	rune_counter : [BOARD_SIZE]int
-	//fmt.println("box:", x, ",", y)
+is_solved :: proc() -> (solved: bool) {
+	for i in 0..<BOARD_SIZE {
+		row_seen: [BOARD_SIZE]bool
+		col_seen: [BOARD_SIZE]bool
 
-	/*
-	for i in 0..<BOARD_SIZE-1 {
-		for j in 0..<BOARD_SIZE-1 {
-			pos := Position{(SQ_SIZE * x) + i/3, (SQ_SIZE * y) + i%%3}
-			pot := board_pot[pos.x][pos.y][:]
-			//fmt.println("pot:", pot)
+		for j in 0..<BOARD_SIZE {
+			r := board[i][j]
+			c := board[j][i]
+
+			if r < '1' || r > '9' || row_seen[int(r-'0')] {
+				fmt.println("row", i, "not solved!")
+				//fmt.println("row_seen:", row_seen)
+				return false
+			}
+			if c < '1' || c > '9' || col_seen[int(c-'0')] {
+				fmt.println("col", i, " not solved!")
+				//fmt.println("col_seen:", col_seen)
+				return false
+			}
+
+			row_seen[int(r-'0')] = true
+			col_seen[int(c-'0')] = true
 		}
 	}
-	// */
-	return is_complete, ok
+
+	for box_y in 0..<SQ_SIZE {
+		for box_x in 0..<SQ_SIZE {
+			box_seen: [BOARD_SIZE]bool
+
+			for y in 0..<SQ_SIZE {
+				for x in 0..<SQ_SIZE {
+					r := board[box_y*SQ_SIZE+y][box_x*SQ_SIZE+x]
+					if r < '1' || r > '9' || box_seen[int(r-'0')] {
+						fmt.println("box", box_y, ",", box_y, "not solved!")
+						//fmt.println("box_seen:", box_seen)
+						return false
+					}
+					box_seen[int(r-'0')] = true
+				}
+			}
+		}
+	}
+	return true
 }
 
 main :: proc() {
@@ -810,28 +879,26 @@ main :: proc() {
 	print_sudoku_board()
 	print_sudoku_board_pot()
 
-	//get_possible_values(Position{0, 5}, true)
-	ok = clean_up_stragglers()
-	if !ok { fmt.print("error") }
-
 	solved := false
 	progress_made : bool
-	/*
-	x: int = 42
-	ptr: ^int = &x  // ptr is a pointer to an integer
-	// Dereferencing to read or write value
-	val: int = ptr^  // val is now 42
-	ptr^ = 100       // x is now 100
-	*/
+
+	ok = clean_up_stragglers(&progress_made)
+	if !ok { fmt.print("error") }
+
 	for {
 		//Go through all of our algorithms, trying to fill in cells
 		ok = check_for_loners(&progress_made)
-		ok = find_hidden_sets_in_rows(&progress_made)
+		fmt.println("^ check_for_loners - progress_made:", progress_made)
+		ok = find_hidden_pairs(&progress_made)
+		fmt.println("^ find_hidden_pairs - progress_made:", progress_made)
+		ok = find_hidden_sets(&progress_made)
+		fmt.println("^ find_hidden_sets - progress_made:", progress_made)
 		print_sudoku_board()
 		print_sudoku_board_pot()
 		
-		update_board_pot()
-		//clean_up_stragglers()
+		//update_board_pot()
+		clean_up_stragglers(&progress_made)
+		fmt.println("^ clean_up_stragglers - progress_made:", progress_made)
 		
 		fmt.println("progress_made:", progress_made)
 		if !(progress_made) {
@@ -839,27 +906,10 @@ main :: proc() {
 		}
 		progress_made = false
 	}
-	if !solved {
-		print_sudoku_board()
-		print_sudoku_board_pot()
-		fmt.println("Not solved")
-	}
 
-	/*
-
-	update_board_pot()
-	clean_up_stragglers()
-	//find_hidden_pairs_in_rows()
-	//find_hidden_pairs_in_cols()
-	//find_hidden_pairs_in_boxes()
-	//find_hidden_sets_in_cols()
-	clean_up_stragglers()
-	find_hidden_pairs_in_boxes()
-	//find_hidden_sets_in_boxes()
-	find_hidden_sets_in_boxes()
-	// */
-	//find_hidden_sets_in_box(2, 0, true)
-
+	print_sudoku_board()
+	print_sudoku_board_pot()
+	fmt.println("Solved:", is_solved())
 
 	fmt.println()
 	fmt.println("Sudoku end!")
