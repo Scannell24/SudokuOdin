@@ -189,8 +189,8 @@ del_potential_vals :: proc(
 
 find_hidden_pairs :: proc(progress_ptr:^bool) -> (ok:=true) {
 	box_ok := find_hidden_pairs_in_boxes(progress_ptr)
-	col_ok := find_hidden_pairs_in_rows(progress_ptr)
-	row_ok := find_hidden_pairs_in_cols(progress_ptr)
+	row_ok := find_hidden_pairs_in_rows(progress_ptr)
+	col_ok := find_hidden_pairs_in_cols(progress_ptr)
 	ok = box_ok || col_ok || row_ok
 	return ok
 }
@@ -345,8 +345,8 @@ is_subset :: proc(
 
 find_hidden_sets :: proc(progress_ptr:^bool) -> (ok:=true) {
 	box_ok := find_hidden_sets_in_boxes(progress_ptr)
-	col_ok := find_hidden_sets_in_rows(progress_ptr)
-	row_ok := find_hidden_sets_in_cols(progress_ptr)
+	row_ok := find_hidden_sets_in_rows(progress_ptr)
+	col_ok := find_hidden_sets_in_cols(progress_ptr)
 	ok = box_ok || col_ok || row_ok
 	return ok
 }
@@ -523,6 +523,37 @@ find_hidden_sets_in_rows :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=tr
 	return ok
 }
 
+find_pot_pair_blocks :: proc(progress_ptr:^bool) -> (ok:=true) {
+	//box_ok := find_pot_pair_blocks_in_boxes(progress_ptr)
+	//row_ok := find_pot_pair_blocks_in_rows(progress_ptr)
+	col_ok := find_pot_pair_blocks_in_cols(progress_ptr)
+	//ok = box_ok || col_ok || row_ok
+	return ok
+}
+
+
+find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=true) -> (ok:=true) {
+	/*
+	Find cases where a value is missing from a whole box_col
+	If the potential value only fits in the same two cols for two of the box_cols
+	Then remove the potential value from the cols of the remaining box
+	+ - - - +    + - - - +
+	| x x x |    | . . x |
+	+ - - - +    + - - - +
+	| x x . | -> | x x . |
+	+ - - - +    + - - - +
+	| x x . |    | x x . |
+	+ - - - +    + - - - +
+	*/
+	for val in 1..<BOARD_SIZE+1 {
+		if dbg_log { fmt.println("val: ", val) }
+		// Go through each column
+		//for col_y in 0..<BOARD_SIZE {
+			// For each column, go through each row
+		//	for row_x1 in 0..<BOARD_SIZE {
+	}
+	return ok
+}
 
 check_for_loners :: proc(progress_ptr:^bool, dbg_log:=false) -> (ok:=true) {
 	box_ok := check_for_loners_in_boxes(progress_ptr)
@@ -886,6 +917,7 @@ main :: proc() {
 	if !ok { fmt.print("error") }
 
 	for {
+		//TODO - create algorithmic complexity rating O(n) vs O(n^2) to determine when to execute
 		//Go through all of our algorithms, trying to fill in cells
 		ok = check_for_loners(&progress_made)
 		fmt.println("^ check_for_loners - progress_made:", progress_made)
@@ -906,6 +938,9 @@ main :: proc() {
 		}
 		progress_made = false
 	}
+
+	ok = find_pot_pair_blocks(&progress_made)
+	fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made)
 
 	print_sudoku_board()
 	print_sudoku_board_pot()
