@@ -546,12 +546,13 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=true) -> (ok:
 	+ - - - +    + - - - +
 	*/
 	for box_col in 0..<SQ_SIZE {
+		//if dbg_log { fmt.println("box_col: ", box_col) }
 		val_seen: [BOARD_SIZE]bool
 		missing_runes : [dynamic]rune
 		for sub_col in 0..<SQ_SIZE {
 			col_y1 := box_col*SQ_SIZE + sub_col
 			//if dbg_log { fmt.println("col_y1: ", col_y1) }
-			// For each column, go through each row
+			// For each column, go through each row, report values that have been seen
 			for row_x1 in 0..<BOARD_SIZE {
 				if board[row_x1][col_y1] != '.' {
 					// if dbg_log { fmt.println("val_seen: ", val_seen) }
@@ -565,8 +566,9 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=true) -> (ok:
 				append(&missing_runes, rune('0'+i+1))
 			}
 		}
-		if dbg_log { fmt.println("missing_runes from box_col" , box_col, ":", missing_runes) }
+		//if dbg_log { fmt.println("missing_runes from box_col" , box_col, ":", missing_runes) }
 		for missing_rune in missing_runes {
+			// Determine which columns the missing runes could be in for each box
 			val_in_box_col: [SQ_SIZE][SQ_SIZE]bool
 			for sub_col in 0..<SQ_SIZE {
 				col_y1 := box_col*SQ_SIZE + sub_col
@@ -583,24 +585,25 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=true) -> (ok:
 					}
 				}
 			}
-			if dbg_log { fmt.println("val_in_box_col for ", missing_rune, ": ", val_in_box_col) }
+			//if dbg_log { fmt.println("val_in_box_col for ", missing_rune, ": ", val_in_box_col) }
 			for x1 in 0..<SQ_SIZE-1  {
-				count_1 := 0
+				// Search for cases where the missing rune is possible in two of the columns
+				count := 0
 				for y1 in 0..<SQ_SIZE  {
 					if val_in_box_col[x1][y1] {
-						count_1+=1
+						count+=1
 					}
 				}
-				if count_1 == 2 {
-					//if dbg_log { fmt.println("val_in_box: ", val_in_box_col[x1]) }
+				if count == 2 {
 					for x2 in x1+1..<SQ_SIZE {
 						if val_in_box_col[x1] ==  val_in_box_col[x2]{
-							if dbg_log { fmt.println(x1, "==", x2) }
+							if dbg_log { fmt.println("box_col", box_col, "has val_in_box pair: ", val_in_box_col[x1]) }
+							if dbg_log { fmt.println("box rows of pair found in boxes: ", x1, "and", x2) }
 							for x3 in 0..<SQ_SIZE {
 								if x3 != x1 && x3 != x2 {
 									//odd man out
 									num_del := 0
-									if dbg_log { fmt.println("x3 =", x3) }
+									// if dbg_log { fmt.println("box row", x3, "can have pot values removed") }
 									for x4 in 0..<SQ_SIZE {
 										row_x1 := x3*SQ_SIZE + x4
 										for sub_col in 0..<len(val_in_box_col[x1]) {
@@ -612,8 +615,7 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=true) -> (ok:
 												append(&my_runes, missing_rune)
 												num_del, ok = del_potential_vals(row_x1, col_y1, my_runes)
 												if num_del > 0 {
-													fmt.println("num_del:", num_del)
-													fmt.println("board_pot[row_x1][col_y1]:", tmp_copy)
+													fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
 													progress_made^ = true
 												}
 											}
@@ -626,12 +628,8 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=true) -> (ok:
 					}
 				}
 			}
-			if dbg_log { fmt.println("vagebeg ", val_in_box_col[0] == val_in_box_col[2]) }
 		}
-
-
-			// Go through each column
-			//for col_y in 0..<BOARD_SIZE {
+		if dbg_log { fmt.println() }
 	}
 	return ok
 }
@@ -1006,8 +1004,6 @@ main :: proc() {
 		fmt.println("^ find_hidden_pairs - progress_made:", progress_made)
 		ok = find_hidden_sets(&progress_made)
 		fmt.println("^ find_hidden_sets - progress_made:", progress_made)
-		ok = find_pot_pair_blocks(&progress_made)
-		fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made)
 		//ok = find_hidden_strike(&progress_made)
 		//fmt.println("^ find_hidden_strike - progress_made:", progress_made)
 		print_sudoku_board()
@@ -1023,6 +1019,8 @@ main :: proc() {
 		}
 		progress_made = false
 	}
+	ok = find_pot_pair_blocks(&progress_made)
+	fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made)
 
 	print_sudoku_board()
 	print_sudoku_board_pot()
