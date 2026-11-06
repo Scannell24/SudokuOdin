@@ -66,8 +66,8 @@ update_board_pot :: proc(reset:=false) -> (ok:=true) {
 	for x in 0..<BOARD_SIZE {
 		for y in 0..<BOARD_SIZE {
 			pos := Position{x, y}
+			potential_runes, ok = get_possible_values(pos)
 			if board[x][y] == '.' {
-				potential_runes, ok = get_possible_values(pos)
 				if reset {
 					board_pot[x][y] = potential_runes
 				} else {
@@ -80,13 +80,15 @@ update_board_pot :: proc(reset:=false) -> (ok:=true) {
 					}
 					board_pot[x][y] = tmp_runes
 				}
+			} else {
+				board_pot[x][y] = potential_runes
 			}
 		}
 	}
 	return ok
 }
 
-print_sudoku_board_pot :: proc() {
+print_sudoku_board_pot :: proc(ignore_board:=false) {
 	fmt.println("print_sudoku_board_pot")
 
 
@@ -108,7 +110,7 @@ print_sudoku_board_pot :: proc() {
 						fmt.print('|')
 						for z in 0..<SQ_SIZE {
 							board_val := board[a*SQ_SIZE+b][x*SQ_SIZE+y]
-							if board_val != '.'
+							if board_val != '.' && !ignore_board
 							{
 								if z == 1 && w == 1 {
 									fmt.print("", board_val)
@@ -564,13 +566,14 @@ find_hidden_strike_in_box :: proc(
 	//if dbg_log { fmt.println("missing_runes from box", box_row, ",", box_col, ":", missing_runes) }
 	for missing_rune in missing_runes {
 		find_hidden_strike_in_cols(progress_made, missing_rune, box_row, box_col, dbg_log)
+		find_hidden_strike_in_rows(progress_made, missing_rune, box_row, box_col, dbg_log)
 	}
 	return ok
 }
 
 			
 
-find_hidden_row_strike_in_box :: proc(
+find_hidden_strike_in_rows :: proc(
 	progress_made:^bool,
 	missing_rune: rune,
 	box_row: int,
@@ -585,6 +588,54 @@ find_hidden_row_strike_in_box :: proc(
 	| . . . | x x x |    | . . . | x x x |
 	+ - - - + - - - +    + - - - + - - - +
 	*/
+	// Determine which rows the missing runes could be in for each box
+	val_in_box_row: [SQ_SIZE]bool
+	sub_row_index := 0
+	count := 0
+	for sub_row in 0..<SQ_SIZE {
+		row_x1 := box_row*SQ_SIZE + sub_row
+		//if dbg_log { fmt.println("col_y1: ", col_y1) }
+		// For each column, go through each row
+		for sub_col in 0..<SQ_SIZE {
+			col_y1 := box_col*SQ_SIZE + sub_col
+
+			_, in_pot := slice.linear_search(board_pot[row_x1][col_y1][:], missing_rune)
+			// If the rune is in the potential values for the cell
+			if in_pot{
+				val_in_box_row[sub_row] = true
+				sub_row_index = sub_row
+				count+=1
+				break
+			}
+		}
+	}
+	if count==1 {
+		/*
+		if dbg_log {
+			fmt.print("box [", box_row, ",", box_col, "] -", sub_row_index, ": ")
+			fmt.println("val_in_box_row for ", missing_rune, ": ", val_in_box_row)
+		}
+		*/
+		//Strike rune from potential vals in column of interest
+		num_del := 0
+		row_x1 := box_row*SQ_SIZE + sub_row_index
+		for box_col2 in 0..<SQ_SIZE {
+			if box_col != box_col2 {
+				for sub_col in 0..<SQ_SIZE {
+					col_y1 := box_col2*SQ_SIZE + sub_col
+					tmp_copy := board_pot[row_x1][col_y1][:]
+					// delete the any values from the set from this cell
+					my_runes: [dynamic]rune
+					append(&my_runes, missing_rune)
+					num_del, ok = del_potential_vals(row_x1, col_y1, my_runes)
+					if num_del > 0 {
+						fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
+						progress_made^ = true
+					}
+				}
+			}
+		}
+	}
 	return ok
 }
 
@@ -609,6 +660,7 @@ find_hidden_strike_in_cols :: proc(
 	*/
 	// Determine which columns the missing runes could be in for each box
 	val_in_box_col: [SQ_SIZE]bool
+	sub_col_index := 0
 	count := 0
 	for sub_col in 0..<SQ_SIZE {
 		col_y1 := box_col*SQ_SIZE + sub_col
@@ -621,56 +673,39 @@ find_hidden_strike_in_cols :: proc(
 			// If the rune is in the potential values for the cell
 			if in_pot{
 				val_in_box_col[sub_col] = true
+				sub_col_index = sub_col
 				count+=1
 				break
 			}
 		}
 	}
-	if dbg_log && count==1 { fmt.println("box [", box_row, ",", box_col, "]: val_in_box_col for ", missing_rune, ": ", val_in_box_col) }
-	/*
-	for x1 in 0..<SQ_SIZE-1  {
-		count := 0
-		for y1 in 0..<SQ_SIZE  {
-			if val_in_box_col[x1][y1] {
-				count+=1
-			}
+	if count==1 {
+		/*
+		if dbg_log {
+			fmt.print("box [", box_row, ",", box_col, "] -", sub_col_index, ": ")
+			fmt.println("val_in_box_col for ", missing_rune, ": ", val_in_box_col)
 		}
-		// Search for cases where the missing rune is possible in two of the columns
-		if count == 2 {
-			for x2 in x1+1..<SQ_SIZE {
-				if val_in_box_col[x1] ==  val_in_box_col[x2]{
-					if dbg_log { fmt.println("box_col", box_col, "has missing_rune", missing_rune,  "has val_in_box pair: ", val_in_box_col[x1]) }
-					if dbg_log { fmt.println("box rows of pair found in boxes: ", x1, "and", x2) }
-					for x3 in 0..<SQ_SIZE {
-						if x3 != x1 && x3 != x2 {
-							//odd man out
-							num_del := 0
-							// if dbg_log { fmt.println("box row", x3, "can have pot values removed") }
-							for x4 in 0..<SQ_SIZE {
-								row_x1 := x3*SQ_SIZE + x4
-								for sub_col in 0..<len(val_in_box_col[x1]) {
-									col_y1 := box_col*SQ_SIZE + sub_col
-									if val_in_box_col[x1][sub_col] {
-										tmp_copy := board_pot[row_x1][col_y1][:]
-										// delete the any values from the set from this cell
-										my_runes: [dynamic]rune
-										append(&my_runes, missing_rune)
-										num_del, ok = del_potential_vals(row_x1, col_y1, my_runes)
-										if num_del > 0 {
-											fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
-											progress_made^ = true
-										}
-									}
-								}
-							}
-							
-						}
+		*/
+		//Strike rune from potential vals in column of interest
+		num_del := 0
+		col_y1 := box_col*SQ_SIZE + sub_col_index
+		for box_row2 in 0..<SQ_SIZE {
+			if box_row != box_row2 {
+				for sub_row in 0..<SQ_SIZE {
+					row_x1 := box_row2*SQ_SIZE + sub_row
+					tmp_copy := board_pot[row_x1][col_y1][:]
+					// delete the any values from the set from this cell
+					my_runes: [dynamic]rune
+					append(&my_runes, missing_rune)
+					num_del, ok = del_potential_vals(row_x1, col_y1, my_runes)
+					if num_del > 0 {
+						fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
+						progress_made^ = true
 					}
 				}
 			}
 		}
 	}
-	// */
 	return ok
 }
 
@@ -1094,19 +1129,20 @@ is_solved :: proc() -> (solved: bool) {
 			r := board[i][j]
 			c := board[j][i]
 
-			if r < '1' || r > '9' || row_seen[int(r-'0')] {
+			if r < '1' || r > '9' || row_seen[int(r-'1')] {
 				fmt.println("row", i, "not solved!")
-				//fmt.println("row_seen:", row_seen)
+				fmt.println("row_seen:", row_seen)
 				return false
 			}
-			if c < '1' || c > '9' || col_seen[int(c-'0')] {
+			//fmt.println("col", int(c-'0'), "!")
+			if c < '1' || c > '9' || col_seen[int(c-'1')] {
 				fmt.println("col", i, " not solved!")
-				//fmt.println("col_seen:", col_seen)
+				fmt.println("col_seen:", col_seen)
 				return false
 			}
 
-			row_seen[int(r-'0')] = true
-			col_seen[int(c-'0')] = true
+			row_seen[int(r-'1')] = true
+			col_seen[int(c-'1')] = true
 		}
 	}
 
@@ -1117,12 +1153,12 @@ is_solved :: proc() -> (solved: bool) {
 			for y in 0..<SQ_SIZE {
 				for x in 0..<SQ_SIZE {
 					r := board[box_y*SQ_SIZE+y][box_x*SQ_SIZE+x]
-					if r < '1' || r > '9' || box_seen[int(r-'0')] {
+					if r < '1' || r > '9' || box_seen[int(r-'1')] {
 						fmt.println("box", box_y, ",", box_y, "not solved!")
 						//fmt.println("box_seen:", box_seen)
 						return false
 					}
-					box_seen[int(r-'0')] = true
+					box_seen[int(r-'1')] = true
 				}
 			}
 		}
@@ -1157,8 +1193,10 @@ main :: proc() {
 		fmt.println("^ find_hidden_sets - progress_made:", progress_made)
 		ok = find_pot_pair_blocks(&progress_made)
 		fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made)
+		ok = find_hidden_strike_in_boxes(&progress_made)
+		fmt.println("^ find_hidden_strike_in_boxes - progress_made:", progress_made)
 		print_sudoku_board()
-		print_sudoku_board_pot()
+		print_sudoku_board_pot()//true)
 		
 		//update_board_pot()
 		clean_up_stragglers(&progress_made)
@@ -1171,8 +1209,6 @@ main :: proc() {
 		progress_made = false
 	}
 
-	ok = find_hidden_strike_in_boxes(&progress_made)
-	fmt.println("^ find_hidden_strike_in_boxes - progress_made:", progress_made)
 
 	print_sudoku_board()
 	print_sudoku_board_pot()
