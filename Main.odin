@@ -523,6 +523,157 @@ find_hidden_sets_in_rows :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=tr
 	return ok
 }
 
+
+find_hidden_strike_in_boxes :: proc(progress_ptr:^bool, dbg_log:=true) -> (ok:=true) {
+	//row_ok := find_hidden_strike_in_rows(progress_ptr)
+	//col_ok := find_hidden_strike_in_cols(progress_ptr)
+	//ok = box_ok || col_ok || row_ok
+	for box_row in 0..<SQ_SIZE {
+		for box_col in 0..<SQ_SIZE {
+			//if dbg_log { fmt.println("box: ", box_row, box_col) }
+			ok = find_hidden_strike_in_box(progress_ptr, box_row, box_col, dbg_log)
+		}
+	}
+	return ok
+}
+
+
+find_hidden_strike_in_box :: proc(
+	progress_made:^bool,
+	box_row: int,
+	box_col: int,
+	dbg_log:=false
+) -> (ok:=true) {
+	// For each box, go through each cell
+	val_seen: [BOARD_SIZE]bool
+	missing_runes : [dynamic]rune
+	for box_index1 in 0..<BOARD_SIZE {
+		cell_pos := Position{(SQ_SIZE * box_row) + box_index1/3, (SQ_SIZE * box_col) + box_index1%%3}
+		// If the current cell has the set size we're looking for
+		if board[cell_pos.x][cell_pos.y] != '.' {
+			// if dbg_log { fmt.println("val_seen: ", val_seen) }
+			val_seen[int(board[cell_pos.x][cell_pos.y]-'1')] = true
+		}
+	}
+	for i in 0..<len(val_seen) {
+		if !val_seen[i] {
+			//if dbg_log { fmt.println("index: ", index) }
+			append(&missing_runes, rune('0'+i+1))
+		}
+	}
+	//if dbg_log { fmt.println("missing_runes from box", box_row, ",", box_col, ":", missing_runes) }
+	for missing_rune in missing_runes {
+		find_hidden_strike_in_cols(progress_made, missing_rune, box_row, box_col, dbg_log)
+	}
+	return ok
+}
+
+			
+
+find_hidden_row_strike_in_box :: proc(
+	progress_made:^bool,
+	missing_rune: rune,
+	box_row: int,
+	box_col: int,
+	dbg_log:=false
+) -> (ok:=true) {
+	/*
+	Find cases where a potential value forms a strike line in a box_col
+	+ - - - + - - - +    + - - - + - - - +
+	| . . . | x x x |    | . . . | x x x |
+	| . x x | x x x | => | . x x | . . . |
+	| . . . | x x x |    | . . . | x x x |
+	+ - - - + - - - +    + - - - + - - - +
+	*/
+	return ok
+}
+
+find_hidden_strike_in_cols :: proc(
+	progress_made:^bool,
+	missing_rune: rune,
+	box_row: int,
+	box_col: int,
+	dbg_log:=false
+) -> (ok:=true) {
+	/*
+	Find cases where a potential value forms a strike line in a box_col
+	+ - - - +      + - - - +
+	| . . . |      | . . . |
+	| . x . |      | . x . |
+	| . X . |      | . x . |
+	+ - - - +  =>  + - - - +
+	| x x x |      | x . x |
+	| x x x |      | x . x |
+	| x x x |      | x . x |
+	+ - - - +      + - - - +
+	*/
+	// Determine which columns the missing runes could be in for each box
+	val_in_box_col: [SQ_SIZE]bool
+	count := 0
+	for sub_col in 0..<SQ_SIZE {
+		col_y1 := box_col*SQ_SIZE + sub_col
+		//if dbg_log { fmt.println("col_y1: ", col_y1) }
+		// For each column, go through each row
+		for sub_row in 0..<SQ_SIZE {
+			row_x1 := box_row*SQ_SIZE + sub_row
+
+			_, in_pot := slice.linear_search(board_pot[row_x1][col_y1][:], missing_rune)
+			// If the rune is in the potential values for the cell
+			if in_pot{
+				val_in_box_col[sub_col] = true
+				count+=1
+				break
+			}
+		}
+	}
+	if dbg_log && count==1 { fmt.println("box [", box_row, ",", box_col, "]: val_in_box_col for ", missing_rune, ": ", val_in_box_col) }
+	/*
+	for x1 in 0..<SQ_SIZE-1  {
+		count := 0
+		for y1 in 0..<SQ_SIZE  {
+			if val_in_box_col[x1][y1] {
+				count+=1
+			}
+		}
+		// Search for cases where the missing rune is possible in two of the columns
+		if count == 2 {
+			for x2 in x1+1..<SQ_SIZE {
+				if val_in_box_col[x1] ==  val_in_box_col[x2]{
+					if dbg_log { fmt.println("box_col", box_col, "has missing_rune", missing_rune,  "has val_in_box pair: ", val_in_box_col[x1]) }
+					if dbg_log { fmt.println("box rows of pair found in boxes: ", x1, "and", x2) }
+					for x3 in 0..<SQ_SIZE {
+						if x3 != x1 && x3 != x2 {
+							//odd man out
+							num_del := 0
+							// if dbg_log { fmt.println("box row", x3, "can have pot values removed") }
+							for x4 in 0..<SQ_SIZE {
+								row_x1 := x3*SQ_SIZE + x4
+								for sub_col in 0..<len(val_in_box_col[x1]) {
+									col_y1 := box_col*SQ_SIZE + sub_col
+									if val_in_box_col[x1][sub_col] {
+										tmp_copy := board_pot[row_x1][col_y1][:]
+										// delete the any values from the set from this cell
+										my_runes: [dynamic]rune
+										append(&my_runes, missing_rune)
+										num_del, ok = del_potential_vals(row_x1, col_y1, my_runes)
+										if num_del > 0 {
+											fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
+											progress_made^ = true
+										}
+									}
+								}
+							}
+							
+						}
+					}
+				}
+			}
+		}
+	}
+	// */
+	return ok
+}
+
 find_pot_pair_blocks :: proc(progress_ptr:^bool) -> (ok:=true) {
 	//box_ok := find_pot_pair_blocks_in_boxes(progress_ptr)
 	//row_ok := find_pot_pair_blocks_in_rows(progress_ptr)
@@ -532,7 +683,7 @@ find_pot_pair_blocks :: proc(progress_ptr:^bool) -> (ok:=true) {
 }
 
 
-find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=true) -> (ok:=true) {
+find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=true) {
 	/*
 	Find cases where a value is missing from a whole box_col
 	If the potential value only fits in the same two cols for two of the box_cols
@@ -546,7 +697,7 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=true) -> (ok:
 	+ - - - +    + - - - +
 	*/
 	for box_col in 0..<SQ_SIZE {
-		//if dbg_log { fmt.println("box_col: ", box_col) }
+		if dbg_log { fmt.println("box_col: ", box_col) }
 		val_seen: [BOARD_SIZE]bool
 		missing_runes : [dynamic]rune
 		for sub_col in 0..<SQ_SIZE {
@@ -585,19 +736,19 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=true) -> (ok:
 					}
 				}
 			}
-			//if dbg_log { fmt.println("val_in_box_col for ", missing_rune, ": ", val_in_box_col) }
+			if dbg_log { fmt.println("val_in_box_col for ", missing_rune, ": ", val_in_box_col) }
 			for x1 in 0..<SQ_SIZE-1  {
-				// Search for cases where the missing rune is possible in two of the columns
 				count := 0
 				for y1 in 0..<SQ_SIZE  {
 					if val_in_box_col[x1][y1] {
 						count+=1
 					}
 				}
+				// Search for cases where the missing rune is possible in two of the columns
 				if count == 2 {
 					for x2 in x1+1..<SQ_SIZE {
 						if val_in_box_col[x1] ==  val_in_box_col[x2]{
-							if dbg_log { fmt.println("box_col", box_col, "has val_in_box pair: ", val_in_box_col[x1]) }
+							if dbg_log { fmt.println("box_col", box_col, "has missing_rune", missing_rune,  "has val_in_box pair: ", val_in_box_col[x1]) }
 							if dbg_log { fmt.println("box rows of pair found in boxes: ", x1, "and", x2) }
 							for x3 in 0..<SQ_SIZE {
 								if x3 != x1 && x3 != x2 {
@@ -1004,8 +1155,8 @@ main :: proc() {
 		fmt.println("^ find_hidden_pairs - progress_made:", progress_made)
 		ok = find_hidden_sets(&progress_made)
 		fmt.println("^ find_hidden_sets - progress_made:", progress_made)
-		//ok = find_hidden_strike(&progress_made)
-		//fmt.println("^ find_hidden_strike - progress_made:", progress_made)
+		ok = find_pot_pair_blocks(&progress_made)
+		fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made)
 		print_sudoku_board()
 		print_sudoku_board_pot()
 		
@@ -1019,8 +1170,9 @@ main :: proc() {
 		}
 		progress_made = false
 	}
-	ok = find_pot_pair_blocks(&progress_made)
-	fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made)
+
+	ok = find_hidden_strike_in_boxes(&progress_made)
+	fmt.println("^ find_hidden_strike_in_boxes - progress_made:", progress_made)
 
 	print_sudoku_board()
 	print_sudoku_board_pot()
