@@ -4,6 +4,8 @@ import "core:encoding/csv"
 import "core:fmt"
 import "core:os"
 import "core:slice"
+import "core:strings"
+import "core:strconv"
 import "core:unicode/utf8"
 
 SQ_SIZE : int : 3
@@ -56,6 +58,76 @@ read_sudoku_csv :: proc(csv_path : string) -> (result: [][]rune, ok:=true) {
 		}
 		records[i] = rune_row
 	}
+	
+	return records, ok
+}
+
+read_sudoku_txt :: proc(txt_path : string) -> (result: [][][]rune, ok:=true) {
+	records : [][][]rune
+
+    // 1. Read the entire file into memory
+    data, err := os.read_entire_file(txt_path, context.allocator)
+	if err != nil {
+        fmt.println("Error: Could not read file:", txt_path)
+        return records, false
+    }
+    defer delete(data, context.allocator)
+
+    // 2. Convert the byte slice raw data into an Odin string
+    file_content := string(data)
+
+    // 3. Set up a line iterator
+    it := file_content
+
+	// 4. Instantiate the boards
+
+    line_number := 0
+    for line in strings.split_lines_iterator(&it) {
+		line_number += 1
+	}
+	records = make([][][]rune, line_number)
+	board_pot = make([][][dynamic]rune, BOARD_SIZE)
+	for x in 0..<BOARD_SIZE {
+        // Allocate the secondary slice of BOARD_SIZE for each element
+        board_pot[x] = make([] [dynamic]rune, BOARD_SIZE)
+
+		for y in 0..<BOARD_SIZE {
+            // Initialize the innermost dynamic array
+            board_pot[x][y] = make([dynamic]rune)
+		}
+	}
+	fmt.println("len(board_pot): ", len(board_pot))
+
+	// re-read file and reset line numbers
+    it = file_content
+    line_number = 0
+	// go through lines to poopulate boards
+    for line in strings.split_lines_iterator(&it) {
+        // Trim any trailing carriage returns (useful for Windows CRLF compatibility)
+        trimmed_line := strings.trim_right_space(line)
+
+        // Skip empty lines or comment lines
+        if len(trimmed_line) == 0 || strings.has_prefix(trimmed_line, "#") {
+            continue
+        }
+
+        // 4. Custom parsing logic
+		records[line_number] = make([][]rune, BOARD_SIZE)
+		for x in 0..<BOARD_SIZE {
+			// Allocate the secondary slice of BOARD_SIZE for each element
+			records[line_number][x] = make([]rune, BOARD_SIZE)
+
+			for y in 0..<BOARD_SIZE {
+				// Initialize the innermost dynamic array
+				index := x * BOARD_SIZE + y
+				records[line_number][x][y] = rune(trimmed_line[index])
+			}
+		}
+
+        // Successfully parsed data
+        //fmt.println(records[line_number])
+        line_number += 1
+    }
 	
 	return records, ok
 }
@@ -163,7 +235,7 @@ print_sudoku_board :: proc() {
 		}
 		fmt.println("+ - - - + - - - + - - - +")
 	}
-	fmt.println()
+	//fmt.println()
 	fmt.println(total_filled, "/", BOARD_SIZE*BOARD_SIZE)
 }
 
@@ -250,7 +322,7 @@ find_hidden_pairs_in_box :: proc(
 					}
 				}
 				if num_del > 0 {
-					fmt.println("pair found in box! ", pos1, " , ", pos2, ": values", pot1)
+					//fmt.println("pair found in box! ", pos1, " , ", pos2, ": values", pot1)
 					progress_made^ = true
 				}
 			}
@@ -282,7 +354,7 @@ find_hidden_pairs_in_rows :: proc(progress_made:^bool) -> (ok:=true) {
 								}
 							}
 							if num_del > 0 {
-								fmt.println("pair found in row [", x, "] cols [", i, ",", j, "]: values", board_pot[x][i])
+								//fmt.println("pair found in row [", x, "] cols [", i, ",", j, "]: values", board_pot[x][i])
 								progress_made^ = true
 							}
 						}
@@ -314,7 +386,7 @@ find_hidden_pairs_in_cols :: proc(progress_made:^bool) -> (ok:=true) {
 								}
 							}
 							if num_del > 0 {
-								fmt.println("pair found in col [", y, "] rows [", i, ",", j, "]: values", board_pot[i][y])
+								//fmt.println("pair found in col [", y, "] rows [", i, ",", j, "]: values", board_pot[i][y])
 								progress_made^ = true
 							}
 						}
@@ -407,8 +479,8 @@ find_hidden_sets_in_box :: proc(
 							// delete the any values from the set from this cell
 							num_del, ok = del_potential_vals(box_cell3.x, box_cell3.y, board_pot[box_cell1.x][box_cell1.y])
 							if num_del > 0 {
-								fmt.println("num_del:", num_del)
-								fmt.println("board_pot[row_x][col_y3]:", tmp_copy)
+								//fmt.println("num_del:", num_del)
+								//fmt.println("board_pot[row_x][col_y3]:", tmp_copy)
 								progress_made^ = true
 							}
 						}
@@ -459,8 +531,8 @@ find_hidden_sets_in_cols :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=tr
 								tmp_copy := board_pot[row_x1][col_y][:]
 								num_del, ok = del_potential_vals(row_x3, col_y, board_pot[row_x1][col_y])
 								if num_del > 0 {
-									fmt.println("num_del:", num_del)
-									fmt.println("board_pot[row_x1][col_y]:", tmp_copy)
+									//fmt.println("num_del:", num_del)
+									//fmt.println("board_pot[row_x1][col_y]:", tmp_copy)
 									progress_made^ = true
 								}
 							}
@@ -511,8 +583,8 @@ find_hidden_sets_in_rows :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=tr
 								tmp_copy := board_pot[row_x][col_y3][:]
 								num_del, ok = del_potential_vals(row_x, col_y3, board_pot[row_x][col_y1])
 								if num_del > 0 {
-									fmt.println("num_del:", num_del)
-									fmt.println("board_pot[row_x][col_y3]:", tmp_copy)
+									//fmt.println("num_del:", num_del)
+									//fmt.println("board_pot[row_x][col_y3]:", tmp_copy)
 									progress_made^ = true
 								}
 							}
@@ -629,7 +701,7 @@ find_hidden_strike_in_rows :: proc(
 					append(&my_runes, missing_rune)
 					num_del, ok = del_potential_vals(row_x1, col_y1, my_runes)
 					if num_del > 0 {
-						fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
+						//fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
 						progress_made^ = true
 					}
 				}
@@ -699,7 +771,7 @@ find_hidden_strike_in_cols :: proc(
 					append(&my_runes, missing_rune)
 					num_del, ok = del_potential_vals(row_x1, col_y1, my_runes)
 					if num_del > 0 {
-						fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
+						//fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
 						progress_made^ = true
 					}
 				}
@@ -801,7 +873,7 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=false) -> (ok
 												append(&my_runes, missing_rune)
 												num_del, ok = del_potential_vals(row_x1, col_y1, my_runes)
 												if num_del > 0 {
-													fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
+													//fmt.println("removed val", missing_rune, "from board_pot[", row_x1, "][", col_y1, "]:", tmp_copy)
 													progress_made^ = true
 												}
 											}
@@ -821,6 +893,9 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=false) -> (ok
 }
 
 check_for_loners :: proc(progress_ptr:^bool, dbg_log:=false) -> (ok:=true) {
+	/*
+	Find cases where a potential value forms a strike line in a box_col
+	*/
 	box_ok := check_for_loners_in_boxes(progress_ptr)
 	col_ok := check_for_loners_in_columns(progress_ptr)
 	row_ok := check_for_loners_in_rows(progress_ptr)
@@ -840,12 +915,11 @@ check_for_loners_in_rows :: proc(progress_ptr:^bool, dbg_log:=false) ->
 			rune_counter[j] = 0
 		}
 		for j in 0..<BOARD_SIZE {
-			pos := Position{i, j}
-			pot_runes, ok = get_possible_values(pos)
+			pot_runes = board_pot[i][j]
 			for pot_rune in pot_runes {
-				if dbg_log { fmt.print(pot_rune) }
+				//if dbg_log { fmt.print(pot_rune) }
 				index := int(pot_rune - '0')
-				if dbg_log { fmt.print(index, ' ') }
+				//if dbg_log { fmt.print(index, ' ') }
 				rune_counter[index-1] += 1
 			}
 			rune_slice[j] = pot_runes
@@ -865,7 +939,7 @@ check_for_loners_in_rows :: proc(progress_ptr:^bool, dbg_log:=false) ->
 					if found {
 						progress_ptr^ = true
 						pos := Position{i, j}
-						fmt.println("check_for_loners_in_rows - value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
+						if dbg_log { fmt.println("check_for_loners_in_rows - value for [", pos.x, "][", pos.y, "] determined:", curr_rune) }
 						board[pos.x][pos.y] = curr_rune
 						break
 					}
@@ -893,8 +967,7 @@ check_for_loners_in_columns :: proc(progress_ptr:^bool, dbg_log:=false) ->
 			rune_counter[j] = 0
 		}
 		for j in 0..<BOARD_SIZE {
-			pos := Position{j, i}
-			pot_runes, ok = get_possible_values(pos)
+			pot_runes = board_pot[j][i]
 			for pot_rune in pot_runes {
 				if dbg_log { fmt.print(pot_rune) }
 				index := int(pot_rune - '1')
@@ -918,7 +991,7 @@ check_for_loners_in_columns :: proc(progress_ptr:^bool, dbg_log:=false) ->
 					if found {
 						progress_ptr^ = true
 						pos := Position{j, i}
-						fmt.println("check_for_loners_in_columns - value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
+						if dbg_log { fmt.println("check_for_loners_in_columns - value for [", pos.x, "][", pos.y, "] determined:", curr_rune) }
 						board[pos.x][pos.y] = curr_rune
 						break
 					}
@@ -955,7 +1028,7 @@ check_for_loners_in_box :: proc(x: int, y: int, progress_ptr:^bool, dbg_log:=fal
 	for i in 0..<SQ_SIZE {
 		for j in 0..<SQ_SIZE {
 			pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
-			pot_runes, ok = get_possible_values(pos)
+			pot_runes = board_pot[pos.x][pos.y]
 			for pot_rune in pot_runes {
 				//fmt.print(pot_rune)
 				index := int(pot_rune - '0')
@@ -978,7 +1051,7 @@ check_for_loners_in_box :: proc(x: int, y: int, progress_ptr:^bool, dbg_log:=fal
 					if found {
 						progress_ptr^ = true
 						pos := Position{(SQ_SIZE * box.x) + i, (SQ_SIZE * box.y) + j}
-						fmt.println("check_for_loners_in_box - value for [", pos.x, "][", pos.y, "] determind:", curr_rune)
+						if dbg_log { fmt.println("check_for_loners_in_box - value for [", pos.x, "][", pos.y, "] determined:", curr_rune) }
 						board[pos.x][pos.y] = curr_rune
 						break
 					}
@@ -1091,7 +1164,7 @@ get_possible_values :: proc(
 			//fmt.println(curr_rune)
 		}
 	}
-	if len(possible_vals) == 1 || dbg_print {
+	if len(possible_vals) == 1 && dbg_print {
 		fmt.println("position:", pos)
 		fmt.println("possible values:", possible_vals)
 	}
@@ -1105,7 +1178,7 @@ clean_up_stragglers :: proc(progress_ptr:^bool, dbg_log:=false) -> (ok:=true) {
 		for y in 0..<BOARD_SIZE {
 			if board[x][y] == '.' {
 				if len(board_pot[x][y]) == 1 {
-					fmt.println("position: {", x, ",", y, "} =", board_pot[x][y][0])
+					// fmt.println("position: {", x, ",", y, "} =", board_pot[x][y][0])
 					board[x][y] = board_pot[x][y][0]
 					stragglers_found = true
 					progress_ptr^ = true
@@ -1166,17 +1239,11 @@ is_solved :: proc() -> (solved: bool) {
 	return true
 }
 
-main :: proc() {
-	fmt.println("Sudoku start!")
+
+solve_board :: proc(dbg_log:=false) -> (solved:=false) {
 	ok : bool
-	board, ok = read_sudoku_csv("sudoku_3.csv")
-	update_board_pot(reset=true)
-    if !ok { return }
-
 	print_sudoku_board()
-	print_sudoku_board_pot()
-
-	solved := false
+	//print_sudoku_board_pot()
 	progress_made : bool
 
 	ok = clean_up_stragglers(&progress_made)
@@ -1186,33 +1253,67 @@ main :: proc() {
 		//TODO - create algorithmic complexity rating O(n) vs O(n^2) to determine when to execute
 		//Go through all of our algorithms, trying to fill in cells
 		ok = check_for_loners(&progress_made)
-		fmt.println("^ check_for_loners - progress_made:", progress_made)
+		if dbg_log { fmt.println("^ check_for_loners - progress_made:", progress_made) }
 		ok = find_hidden_pairs(&progress_made)
-		fmt.println("^ find_hidden_pairs - progress_made:", progress_made)
+		if dbg_log { fmt.println("^ find_hidden_pairs - progress_made:", progress_made) }
 		ok = find_hidden_sets(&progress_made)
-		fmt.println("^ find_hidden_sets - progress_made:", progress_made)
+		if dbg_log { fmt.println("^ find_hidden_sets - progress_made:", progress_made) }
 		ok = find_pot_pair_blocks(&progress_made)
-		fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made)
+		if dbg_log { fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made) }
 		ok = find_hidden_strike_in_boxes(&progress_made)
-		fmt.println("^ find_hidden_strike_in_boxes - progress_made:", progress_made)
-		print_sudoku_board()
-		print_sudoku_board_pot()//true)
+		if dbg_log { fmt.println("^ find_hidden_strike_in_boxes - progress_made:", progress_made) }
+		//print_sudoku_board()
+		//print_sudoku_board_pot()//true)
 		
 		//update_board_pot()
 		clean_up_stragglers(&progress_made)
-		fmt.println("^ clean_up_stragglers - progress_made:", progress_made)
+		if dbg_log { fmt.println("^ clean_up_stragglers - progress_made:", progress_made) }
 		
-		fmt.println("progress_made:", progress_made)
+		if dbg_log { fmt.println("progress_made:", progress_made) }
 		if !(progress_made) {
 			break
 		}
 		progress_made = false
 	}
 
-
+	solved = is_solved()
 	print_sudoku_board()
-	print_sudoku_board_pot()
-	fmt.println("Solved:", is_solved())
+	if !solved { print_sudoku_board_pot() }
+	fmt.println("Solved:", solved)
+	return solved
+}
+
+solve_txt :: proc(txt_file:string) {
+	boards: [][][]rune
+	txt_board: [][]rune
+	txt_boards, ok := read_sudoku_txt(txt_file)
+    if !ok { return }
+	num_boards := len(txt_boards)
+
+	for txt_board, index in txt_boards
+	{
+		fmt.print("\n\nPUZZLE", index, "out of", num_boards)
+		board = txt_board
+		//print_sudoku_board()
+		update_board_pot(reset=true)
+		solved := solve_board()
+		if !solved {return }
+	}
+}
+
+solve_csv :: proc(csv_file:string) {
+	ok : bool
+	board, ok = read_sudoku_csv(csv_file)
+    if !ok { return }
+	update_board_pot(reset=true)
+	solve_board()
+}
+
+main :: proc() {
+	fmt.println("Sudoku start!")
+
+	//solve_csv("sudoku_3.csv")
+	solve_txt("sudoku_many.txt")
 
 	fmt.println()
 	fmt.println("Sudoku end!")
