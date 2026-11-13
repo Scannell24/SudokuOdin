@@ -892,6 +892,86 @@ find_pot_pair_blocks_in_cols :: proc(progress_made:^bool, dbg_log:=false) -> (ok
 	return ok
 }
 
+
+find_xyz_wing :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=true) {
+	/*
+	https://www.sudokuwiki.org/XYZ_wing
+	*/
+	potential_pivots : [dynamic]Position
+	for x in 0..<BOARD_SIZE {
+		for y in 0..<BOARD_SIZE {
+			if board[x][y] == '.' && len(board_pot[x][y]) == 3 {
+				if dbg_log { fmt.println("potential_pivot: ", x, ",", y) }
+				append(&potential_pivots, Position{x, y})
+			}
+		}
+	}
+
+	for potential_pivot in potential_pivots {
+		// see if there are any subsets on the pivot runes in adjacent rows/cols/box
+		find_adjacent_subsets(potential_pivot)
+	}
+
+	if dbg_log { fmt.println() }
+	return ok
+}
+
+
+find_adjacent_subsets :: proc(pivot:Position, dbg_log:=true) -> (ok:=true) {
+	if dbg_log {
+		fmt.println("pivot: ", pivot)
+		fmt.println("pivot_runes: ", board_pot[pivot.x][pivot.y])
+	}
+	//box_ok := find_subsets_in_box(pivot, dbg_log)
+	col_subset_indices, row_ok := find_subsets_in_row(pivot, dbg_log)
+	row_subset_indices, col_ok := find_subsets_in_col(pivot, dbg_log)
+	//ok = box_ok || col_ok || row_ok
+	if dbg_log { fmt.println() }
+	return ok
+}
+
+find_subsets_in_box :: proc(
+	box: Position,
+	dbg_log:=false
+) -> (ok:=true) {
+	// Look for sets of size 3 or 4 (no need for 5 or 6 as they're compliments)
+	return ok
+}
+
+find_subsets_in_col :: proc(pivot:Position, dbg_log:=false) -> (row_subset_indices:[dynamic]int, ok:=true) {
+	//Find rows in col where the potential runes are a subet of the pivot
+	for row_x in 0..<BOARD_SIZE {
+		// If the current cell has the set size we're looking for
+		if len(board_pot[row_x][pivot.y]) == 2 && row_x != pivot.x {
+			is_subset, ok := is_subset(board_pot[row_x][pivot.y], board_pot[pivot.x][pivot.y])
+			// Add it to the row_indices slice
+			if is_subset {
+				append(&row_subset_indices, row_x)
+				if dbg_log { fmt.println("row subset:", board_pot[row_x][pivot.y]) }
+			}
+		}
+	}
+	return row_subset_indices, ok
+}
+
+find_subsets_in_row :: proc(pivot:Position, dbg_log:=false) -> (col_subset_indices:[dynamic]int, ok:=true) {
+	//Find cols in row where the potential runes are a subet of the pivot
+	pivot_runes := board_pot[pivot.x][pivot.y]
+	// Go through each row in column
+	for col_y in 0..<BOARD_SIZE {
+		// If the current cell has the set size we're looking for
+		if len(board_pot[pivot.x][col_y]) == 2 && col_y != pivot.y {
+			is_subset, ok := is_subset(board_pot[pivot.x][col_y], pivot_runes)
+			// Add it to the row_indices slice
+			if is_subset {
+				append(&col_subset_indices, pivot.x)
+				if dbg_log { fmt.println("col subset:", board_pot[pivot.x][col_y]) }
+			}
+		}
+	}
+	return col_subset_indices, ok
+}
+
 check_for_loners :: proc(progress_ptr:^bool, dbg_log:=false) -> (ok:=true) {
 	/*
 	Find cases where a potential value forms a strike line in a box_col
@@ -1276,6 +1356,7 @@ solve_board :: proc(dbg_log:=false) -> (solved:=false) {
 		progress_made = false
 	}
 
+	find_xyz_wing(&progress_made)
 	solved = is_solved()
 	print_sudoku_board()
 	if !solved { print_sudoku_board_pot() }
@@ -1290,15 +1371,22 @@ solve_txt :: proc(txt_file:string) {
     if !ok { return }
 	num_boards := len(txt_boards)
 
+	solved_board := make([]bool, num_boards)
+	num_failed := 0
 	for txt_board, index in txt_boards
 	{
 		fmt.print("\n\nPUZZLE", index, "out of", num_boards)
 		board = txt_board
 		//print_sudoku_board()
 		update_board_pot(reset=true)
-		solved := solve_board()
-		if !solved {return }
+		solved_board[index] = solve_board()
+		if !solved_board[index] {
+			//return
+			num_failed += 1
+		}
 	}
+	//fmt.println(solved_board)
+	fmt.println("Solved", (num_boards-num_failed), "out of", num_boards)
 }
 
 solve_csv :: proc(csv_file:string) {
