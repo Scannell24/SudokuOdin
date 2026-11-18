@@ -597,6 +597,15 @@ find_hidden_sets_in_rows :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=tr
 	return ok
 }
 
+// TODO: finish
+find_hidden_strikes :: proc(progress_ptr:^bool, dbg_log:=true) -> (ok:=true) {
+	//row_ok := find_hidden_strike_in_rows(progress_ptr, dbg_log)
+	//col_ok := find_hidden_strike_in_cols(progress_ptr, dbg_log)
+	col_ok := find_hidden_strike_in_boxes(progress_ptr, dbg_log)
+	//ok = box_ok || col_ok || row_ok
+	return ok
+}
+
 
 find_hidden_strike_in_boxes :: proc(progress_ptr:^bool, dbg_log:=true) -> (ok:=true) {
 	//row_ok := find_hidden_strike_in_rows(progress_ptr)
@@ -781,6 +790,7 @@ find_hidden_strike_in_cols :: proc(
 	return ok
 }
 
+// TODO: finish
 find_pot_pair_blocks :: proc(progress_ptr:^bool) -> (ok:=true) {
 	//box_ok := find_pot_pair_blocks_in_boxes(progress_ptr)
 	//row_ok := find_pot_pair_blocks_in_rows(progress_ptr)
@@ -909,7 +919,7 @@ find_xyz_wing :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=true) {
 
 	for potential_pivot in potential_pivots {
 		// see if there are any subsets on the pivot runes in adjacent rows/cols/box
-		find_adjacent_subsets(potential_pivot)
+		find_adjacent_subsets(potential_pivot, progress_made)
 	}
 
 	if dbg_log { fmt.println() }
@@ -917,14 +927,87 @@ find_xyz_wing :: proc(progress_made:^bool, dbg_log:=false) -> (ok:=true) {
 }
 
 
-find_adjacent_subsets :: proc(pivot:Position, dbg_log:=true) -> (ok:=true) {
+get_mask :: proc(pivot_runes:[dynamic]rune, subset_runes:[dynamic]rune) -> (ordered_mask:[SQ_SIZE]bool, ok:=true) {
+	for pivot_rune, index in pivot_runes {
+		//fmt.println("index", index)
+		//fmt.println("pivot_rune", pivot_rune)
+		_, found := slice.linear_search(subset_runes[:], pivot_rune)
+		if found {
+			//fmt.println("found")
+			ordered_mask[index] = true
+		}
+	}
+	return ordered_mask, ok
+}
+
+find_adjacent_subsets :: proc(pivot:Position, progress_made:^bool, dbg_log:=true) -> (ok:=true) {
+	pivot_runes := board_pot[pivot.x][pivot.y]
 	if dbg_log {
-		fmt.println("pivot: ", pivot)
-		fmt.println("pivot_runes: ", board_pot[pivot.x][pivot.y])
+		fmt.println("pivot:", pivot)
+		fmt.println("pivot_runes:", pivot_runes)
 	}
 	//box_ok := find_subsets_in_box(pivot, dbg_log)
 	col_subset_indices, row_ok := find_subsets_in_row(pivot, dbg_log)
 	row_subset_indices, col_ok := find_subsets_in_col(pivot, dbg_log)
+	//investigate_adjacent_subsets(pivot, dbg_log) // needed? expanding below instead
+	if len(col_subset_indices) > 0 && len(row_subset_indices) > 0 {
+		//fmt.println("col_subset_indices", col_subset_indices)
+		for col_subset_index in col_subset_indices {
+			ordered_row_mask: [SQ_SIZE]bool
+			//fmt.println("board_pot[pivot.x][col_subset_index]", board_pot[pivot.x][col_subset_index])
+			ordered_col_mask, _ := get_mask(pivot_runes, board_pot[pivot.x][col_subset_index])
+			//if dbg_log { fmt.println("ordered_col_mask[", col_subset_index ,"]:", ordered_col_mask) }
+			for row_subset_index in row_subset_indices {
+				ordered_row_mask, _ := get_mask(pivot_runes, board_pot[row_subset_index][pivot.y])
+				//if dbg_log { fmt.println("ordered_row_mask[", row_subset_index ,"]:", ordered_row_mask) }
+				for i in 0..<SQ_SIZE {
+					if ordered_row_mask[i] && ordered_col_mask[i] {
+						if dbg_log {
+							fmt.print("Remove rune", pivot_runes[i], "from ")
+							fmt.print("row", pivot.y, "and ")
+							fmt.println("col", pivot.x)
+						}
+						del_runes: [dynamic]rune
+						append(&del_runes, pivot_runes[i])
+						num_del := 0
+						// Go through each row again
+						for row_x in 0..<BOARD_SIZE {
+							// If this is not the pivot or subset's col
+							if row_x != row_subset_index && row_x != pivot.x  {
+								// delete the any values from the set from this cell
+								tmp_copy := board_pot[row_x][pivot.y][:]
+								num_del, ok = del_potential_vals(row_x, pivot.y, del_runes)
+								if num_del > 0 {
+									fmt.println("board_pot[row_x][pivot.y]:", tmp_copy)
+									progress_made^ = true
+								}
+							}
+						}
+						num_del = 0
+						// Go through each col again
+						for col_y in 0..<BOARD_SIZE {
+							// If this is not the pivot or subset's col
+							if col_y != col_subset_index && col_y != pivot.y  {
+								// delete the any values from the set from this cell
+								tmp_copy := board_pot[pivot.x][col_y][:]
+								num_del, ok = del_potential_vals(pivot.x, col_y, del_runes)
+								if num_del > 0 {
+									fmt.println("board_pot[pivot.x][col_y]:", tmp_copy)
+									progress_made^ = true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	//ok = box_ok || col_ok || row_ok
+	if dbg_log { fmt.println() }
+	return ok
+}
+
+investigate_adjacent_subsets :: proc(pivot:Position, dbg_log:=false) -> (ok:=true) {
 	//ok = box_ok || col_ok || row_ok
 	if dbg_log { fmt.println() }
 	return ok
@@ -964,7 +1047,7 @@ find_subsets_in_row :: proc(pivot:Position, dbg_log:=false) -> (col_subset_indic
 			is_subset, ok := is_subset(board_pot[pivot.x][col_y], pivot_runes)
 			// Add it to the row_indices slice
 			if is_subset {
-				append(&col_subset_indices, pivot.x)
+				append(&col_subset_indices, col_y)
 				if dbg_log { fmt.println("col subset:", board_pot[pivot.x][col_y]) }
 			}
 		}
@@ -1338,10 +1421,11 @@ solve_board :: proc(dbg_log:=false) -> (solved:=false) {
 		if dbg_log { fmt.println("^ find_hidden_pairs - progress_made:", progress_made) }
 		ok = find_hidden_sets(&progress_made)
 		if dbg_log { fmt.println("^ find_hidden_sets - progress_made:", progress_made) }
-		ok = find_pot_pair_blocks(&progress_made)
-		if dbg_log { fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made) }
-		ok = find_hidden_strike_in_boxes(&progress_made)
-		if dbg_log { fmt.println("^ find_hidden_strike_in_boxes - progress_made:", progress_made) }
+		// TODO: Finish
+		//ok = find_pot_pair_blocks(&progress_made)
+		//if dbg_log { fmt.println("^ find_pot_pair_blocks - progress_made:", progress_made) }
+		ok = find_hidden_strikes(&progress_made)
+		if dbg_log { fmt.println("^ find_hidden_strikes - progress_made:", progress_made) }
 		//print_sudoku_board()
 		//print_sudoku_board_pot()//true)
 		
@@ -1355,7 +1439,8 @@ solve_board :: proc(dbg_log:=false) -> (solved:=false) {
 		}
 		progress_made = false
 	}
-
+	
+	print_sudoku_board_pot()
 	find_xyz_wing(&progress_made)
 	solved = is_solved()
 	print_sudoku_board()
